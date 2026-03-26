@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portal de Simuladores Financeiros</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6; /* gray-100 */
+            color: #1f2937; /* gray-800 */
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-6 md:p-12 relative overflow-x-hidden">
+
+    <!-- Elementos decorativos de fundo -->
+    <div class="absolute top-[-10%] left-[-10%] w-96 h-96 bg-amber-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob"></div>
+    <div class="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-indigo-300 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-2000"></div>
+
+    <div class="max-w-5xl w-full space-y-12 relative z-10">
+        
+        <!-- Cabeçalho -->
+        <header class="text-center space-y-4">
+            <h1 class="text-4xl md:text-5xl font-black text-gray-900 tracking-tight">Simuladores Financeiros</h1>
+            <p class="text-lg md:text-xl text-gray-600 max-w-2xl mx-auto">
+                Selecione o seu modelo de negócio abaixo para acessar a <strong>Demonstração do Resultado do Exercício (DRE)</strong> integrada com a precificação inteligente.
+            </p>
+        </header>
+
+        <!-- Grid de Seleção -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 mt-8">
+            
+            <!-- Card 1: Produto Físico (Cafeteria) -->
+            <a href="dre1.html" class="group block relative h-full bg-white rounded-3xl shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 overflow-hidden border border-gray-100 flex flex-col">
+                <!-- Faixa superior de cor -->
+                <div class="h-3 w-full bg-amber-500"></div>
+                
+                <div class="p-8 md:p-10 flex-1 flex flex-col">
+                    <div class="w-16 h-16 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300 shadow-sm">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" y1="2" x2="6" y2="4"/><line x1="10" y1="2" x2="10" y2="4"/><line x1="14" y1="2" x2="14" y2="4"/></svg>
+                    </div>
+                    
+                    <h2 class="text-2xl font-bold text-amber-900 mb-3">Cafeteria e Produtos Físicos</h2>
+                    
+                    <p class="text-gray-600 leading-relaxed mb-8 flex-1">
+                        Acesse o simulador focado em vendas unitárias, controle de matéria-prima (CMV), perdas, embalagens e cálculo de margem de contribuição direta.
+                    </p>
+                    
+                    <div class="flex items-center text-amber-700 font-semibold group-hover:text-amber-500 transition-colors mt-auto">
+                        Acessar Simulador de Produto
+                        <svg xmlns="http://www.w3.org/2000/svg" class="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                    </div>
+                </div>
+            </a>
+
+            <!-- Card 2: Aplicativo (SaaS) -->
+            <a href="dre2.html" class="group block relative h-full bg-white rounded-3xl shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 overflow-hidden border border-gray-100 flex flex-col">
+                <!-- Faixa superior de cor -->
+                <div class="h-3 w-full bg-indigo-500"></div>
+                
+                <div class="p-8 md:p-10 flex-1 flex flex-col">
+                    <div class="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300 shadow-sm">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></svg>
+                    </div>
+                    
+                    <h2 class="text-2xl font-bold text-indigo-900 mb-3">Aplicativos e SaaS</h2>
+                    
+                    <p class="text-gray-600 leading-relaxed mb-8 flex-1">
+                        Acesse o simulador de tecnologia focado em receita recorrente (MRR), métricas de assinantes, custos de infraestrutura em nuvem, APIs e taxas de App Stores.
+                    </p>
+                    
+                    <div class="flex items-center text-indigo-700 font-semibold group-hover:text-indigo-500 transition-colors mt-auto">
+                        Acessar Simulador de Software
+                        <svg xmlns="http://www.w3.org/2000/svg" class="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                    </div>
+                </div>
+            </a>
+
+        </div>
+
+        <!-- Rodapé simples -->
+        <footer class="text-center text-gray-400 text-sm mt-12 pb-8">
+            <p>Painel de Gestão Estratégica. Selecione o ambiente para iniciar.</p>
+            <p class="mt-2 text-gray-500">&copy; <span id="ano-atual"></span> Gestão Financeira. Todos os direitos reservados.</p>
+        </footer>
+    </div>
+
+    <script>
+        // Atualiza o ano automaticamente
+        document.getElementById('ano-atual').textContent = new Date().getFullYear();
+    </script>
+</body>
+</html>
