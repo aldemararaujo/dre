@@ -1,1 +1,818 @@
-SSS
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestão Financeira e Precificação</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js para o Gráfico Dinâmico -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #fcf9f2;
+            color: #3e2723;
+        }
+        
+        .currency-input-wrapper { position: relative; }
+        .currency-input-wrapper::before {
+            content: 'R$';
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #8d6e63;
+            font-weight: 500;
+            pointer-events: none;
+        }
+        .currency-input { padding-left: 40px !important; }
+        
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { 
+            -webkit-appearance: none; margin: 0; 
+        }
+        input[type=number] { -moz-appearance: textfield; }
+
+        /* Regras exclusivas para quando for Imprimir / Salvar em PDF */
+        @media print {
+            body { background-color: #fff; color: #000; }
+            .no-print { display: none !important; }
+            .shadow-xl, .shadow-lg, .shadow-sm { box-shadow: none !important; }
+            .print-border { border: 1px solid #ccc !important; }
+            input { border: none !important; background: transparent !important; font-weight: bold; padding: 0 !important; }
+            .currency-input-wrapper::before { content: ''; } /* Remove R$ placeholder extra na impressão */
+            .break-avoid { break-inside: avoid; }
+        }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-8">
+
+    <div class="max-w-5xl mx-auto space-y-8">
+        
+        <!-- Cabeçalho e Controles -->
+        <header class="text-center mb-8 flex flex-col md:flex-row justify-between items-center gap-4">
+            <h1 class="text-3xl md:text-4xl font-black text-amber-900 tracking-tight">Gestão Financeira</h1>
+            
+            <div class="flex gap-2 no-print">
+                <!-- Botão Imprimir PDF -->
+                <button onclick="window.print()" class="flex items-center gap-2 px-4 py-2 bg-stone-800 text-stone-50 rounded-lg hover:bg-stone-700 transition-colors font-semibold shadow">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg>
+                    Salvar Relatório
+                </button>
+
+                <!-- Botão Restaurar -->
+                <button onclick="restaurarValores()" class="flex items-center gap-2 px-4 py-2 bg-amber-700 text-amber-50 rounded-lg hover:bg-amber-600 transition-colors font-semibold shadow">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                    Restaurar Padrão
+                </button>
+            </div>
+        </header>
+
+        <!-- Seção 1: DRE Dinâmica -->
+        <section class="bg-white rounded-2xl shadow-xl overflow-hidden border border-amber-100 print-border break-avoid">
+            <div class="bg-amber-800 text-amber-50 p-5 flex justify-between items-center">
+                <div>
+                    <h2 class="text-xl md:text-2xl font-bold flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+                        Demonstração do Resultado do Exercício (DRE)
+                    </h2>
+                    <p class="text-amber-200 mt-1 text-sm no-print">Integrada com a Ficha Técnica. Simule preços e volumes!</p>
+                </div>
+            </div>
+
+            <div class="p-0 md:p-4">
+                
+                <!-- Cabeçalho das Colunas -->
+                <div class="hidden md:flex flex-row items-center gap-4 px-6 py-3 bg-gray-50 border-b border-gray-200 text-xs uppercase tracking-wider font-bold text-gray-500 rounded-t-lg">
+                    <div class="w-24 text-right">Análise Vert.</div>
+                    <div class="flex-1">Categoria e Descrição</div>
+                    <div class="w-48 text-left pl-2">Valor (R$)</div>
+                </div>
+
+                <!-- Bloco 1: Força Comercial -->
+                <div class="border-b-2 border-amber-100">
+                    <div class="bg-amber-200 px-6 py-2 text-sm font-black text-amber-900 border-b border-amber-300 uppercase tracking-wide">1. Força Comercial</div>
+                    
+                    <div class="flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-4 p-4 md:px-6 border-b border-gray-100 bg-amber-50/30">
+                        <div class="w-full md:w-24 shrink-0 text-left md:text-right font-mono font-bold text-lg text-gray-500" id="perc_receitaBruta">100,0%</div>
+                        <div class="flex-1 flex items-center gap-1.5 relative group cursor-help min-w-0">
+                            <label class="font-bold text-[14px] sm:text-sm md:text-base whitespace-nowrap tracking-tight text-amber-900">Receita Bruta Total</label>
+                            <span class="text-stone-400 hover:text-amber-600 shrink-0 transition-colors no-print"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></span>
+                            <div class="absolute left-0 top-full mt-2 hidden group-hover:block w-72 md:w-80 p-4 bg-stone-800 text-white text-xs rounded-lg shadow-xl z-50 whitespace-normal border border-stone-600">
+                                <div class="mb-1.5"><strong class="text-amber-400">Categoria:</strong> Faturamento Bruto.</div>
+                                <div class="mb-1.5"><strong class="text-amber-400">Sinônimos:</strong> Vendas Totais, Faturamento Bruto, Receita de Vendas.</div>
+                                <div class="leading-relaxed"><strong class="text-amber-400">Interpretação:</strong> O volume financeiro total gerado pelo esforço comercial, antes de qualquer desconto ou obrigação fiscal.</div>
+                            </div>
+                        </div>
+                        <div class="w-full md:w-48 shrink-0 currency-input-wrapper">
+                            <input type="number" id="val_receitaBruta" class="currency-input w-full p-2 border border-amber-300 bg-amber-100/60 rounded font-black text-amber-900 cursor-not-allowed" readonly>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-4 py-3 pr-4 md:pr-6 pl-8 md:pl-14 bg-blue-50/50 border-b border-gray-100">
+                        <div class="w-full md:w-24 shrink-0 text-left md:text-right font-mono font-bold text-blue-600">-</div>
+                        <div class="flex-1 flex items-center gap-1.5 relative group cursor-help text-blue-800 min-w-0">
+                            <label class="font-bold text-[13px] sm:text-sm md:text-base whitespace-nowrap tracking-tight truncate"><span class="text-blue-400/70 font-normal mr-1 select-none">↳</span>(Vezes) Mercadorias Vendidas no Mês</label>
+                            <span class="text-stone-400 hover:text-blue-600 shrink-0 transition-colors no-print"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></span>
+                            <div class="absolute left-0 top-full mt-2 hidden group-hover:block w-72 md:w-80 p-4 bg-stone-800 text-white text-xs rounded-lg shadow-xl z-50 whitespace-normal border border-stone-600">
+                                <div class="mb-1.5"><strong class="text-blue-300">Categoria:</strong> Volume de Vendas.</div>
+                                <div class="mb-1.5"><strong class="text-blue-300">Sinônimos:</strong> Qtd. Vendida, Volume Físico.</div>
+                                <div class="leading-relaxed"><strong class="text-blue-300">Interpretação:</strong> Define a quantidade total que você projeta vender. Ao alterar este número, a Receita Bruta e o Custo de Insumos são recalculados instantaneamente!</div>
+                            </div>
+                        </div>
+                        <div class="w-full md:w-48 shrink-0 relative">
+                            <input type="number" id="val_qtdVendas" class="w-full p-2 border border-blue-300 bg-white rounded focus:ring-2 focus:ring-blue-500 font-black text-blue-900 pl-4" value="3500" oninput="calcularValores()">
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-4 py-2 pr-4 md:pr-6 pl-8 md:pl-14 bg-gray-50/40 border-b border-gray-100">
+                        <div class="w-full md:w-24 shrink-0 text-left md:text-right font-mono font-bold text-red-600" id="perc_descontos">0,0%</div>
+                        <div class="flex-1 flex items-center gap-1.5 relative group cursor-help text-red-700 min-w-0">
+                            <label class="font-medium text-[13px] sm:text-sm md:text-base whitespace-nowrap tracking-tight truncate"><span class="text-gray-400/70 font-normal mr-1 select-none">↳</span>(Menos) Descontos Comerciais</label>
+                            <span class="text-stone-400 hover:text-red-500 shrink-0 transition-colors no-print"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></span>
+                            <div class="absolute left-0 top-full mt-2 hidden group-hover:block w-72 md:w-80 p-4 bg-stone-800 text-white text-xs rounded-lg shadow-xl z-50 whitespace-normal border border-stone-600">
+                                <div class="mb-1.5"><strong class="text-red-300">Categoria:</strong> Dedução da Receita.</div>
+                                <div class="mb-1.5"><strong class="text-red-300">Sinônimos:</strong> Abatimentos, Descontos Incondicionais.</div>
+                                <div class="leading-relaxed"><strong class="text-red-300">Interpretação:</strong> Representa o quanto da sua margem de lucro foi sacrificada na negociação direta com o cliente para conseguir fechar a venda.</div>
+                            </div>
+                        </div>
+                        <div class="w-full md:w-48 shrink-0 currency-input-wrapper">
+                            <input type="number" id="val_descontos" class="currency-input w-full p-2 border border-red-200 bg-white rounded font-semibold text-red-800" value="1000" oninput="calcularValores()">
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-4 py-2 pr-4 md:pr-6 pl-8 md:pl-14 bg-gray-50/40 border-b border-gray-100">
+                        <div class="w-full md:w-24 shrink-0 text-left md:text-right font-mono font-bold text-red-600" id="perc_devolucoes">0,0%</div>
+                        <div class="flex-1 flex items-center gap-1.5 relative group cursor-help text-red-700 min-w-0">
+                            <label class="font-medium text-[13px] sm:text-sm md:text-base whitespace-nowrap tracking-tight truncate"><span class="text-gray-400/70 font-normal mr-1 select-none">↳</span>(Menos) Devoluções e Cancelamentos</label>
+                            <span class="text-stone-400 hover:text-red-500 shrink-0 transition-colors no-print"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></span>
+                            <div class="absolute left-0 top-full mt-2 hidden group-hover:block w-72 md:w-80 p-4 bg-stone-800 text-white text-xs rounded-lg shadow-xl z-50 whitespace-normal border border-stone-600">
+                                <div class="mb-1.5"><strong class="text-red-300">Categoria:</strong> Dedução da Receita.</div>
+                                <div class="mb-1.5"><strong class="text-red-300">Sinônimos:</strong> Vendas Canceladas, Estornos, Devoluções de Clientes.</div>
+                                <div class="leading-relaxed"><strong class="text-red-300">Interpretação:</strong> Indica o nível de problemas na operação, pois são vendas registradas que precisaram ser estornadas ou descartadas.</div>
+                            </div>
+                        </div>
+                        <div class="w-full md:w-48 shrink-0 currency-input-wrapper">
+                            <input type="number" id="val_devolucoes" class="currency-input w-full p-2 border border-red-200 bg-white rounded font-semibold text-red-800" value="500" oninput="calcularValores()">
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-4 py-2 pr-4 md:pr-6 pl-8 md:pl-14 bg-gray-50/40">
+                        <div class="w-full md:w-24 shrink-0 text-left md:text-right font-mono font-bold text-red-600" id="perc_impostosVenda">0,0%</div>
+                        <div class="flex-1 flex items-center gap-1.5 relative group cursor-help text-red-700 min-w-0">
+                            <label class="font-medium text-[13px] sm:text-sm md:text-base whitespace-nowrap tracking-tight truncate"><span class="text-gray-400/70 font-normal mr-1 select-none">↳</span>(Menos) Impostos sobre Venda</label>
+                            <span class="text-stone-400 hover:text-red-500 shrink-0 transition-colors no-print"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></span>
+                            <div class="absolute left-0 top-full mt-2 hidden group-hover:block w-72 md:w-80 p-4 bg-stone-800 text-white text-xs rounded-lg shadow-xl z-50 whitespace-normal border border-stone-600">
+                                <div class="mb-1.5"><strong class="text-red-300">Categoria:</strong> Obrigação Fiscal Direta.</div>
+                                <div class="mb-1.5"><strong class="text-red-300">Sinônimos:</strong> Deduções de Vendas, Tributos Incidentes (DAS, ICMS, PIS, COFINS).</div>
+                                <div class="leading-relaxed"><strong class="text-red-300">Interpretação:</strong> É a fatia do governo que incide diretamente sobre a nota fiscal, como o Simples Nacional, reduzindo o dinheiro real que fica no caixa.</div>
+                            </div>
+                        </div>
+                        <div class="w-full md:w-48 shrink-0 currency-input-wrapper">
+                            <input type="number" id="val_impostosVenda" class="currency-input w-full p-2 border border-red-200 bg-white rounded font-semibold text-red-800" value="2500" oninput="calcularValores()">
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-4 p-4 md:px-6 bg-amber-100/50 border-t border-amber-200">
+                        <div class="w-full md:w-24 shrink-0 text-left md:text-right font-mono font-black text-amber-900" id="perc_receitaLiquida">0,0%</div>
+                        <div class="flex-1 flex items-center gap-1.5 relative group cursor-help min-w-0">
+                            <label class="font-bold text-[14px] sm:text-lg text-amber-900 whitespace-nowrap tracking-tight truncate">= Receita Líquida (Caixa Real)</label>
+                            <span class="text-stone-400 hover:text-amber-700 shrink-0 transition-colors no-print"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></span>
+                            <div class="absolute left-0 top-full mt-2 hidden group-hover:block w-72 md:w-80 p-4 bg-stone-800 text-white text-xs rounded-lg shadow-xl z-50 whitespace-normal border border-stone-600">
+                                <div class="mb-1.5"><strong class="text-amber-400">Categoria:</strong> Faturamento Real.</div>
+                                <div class="mb-1.5"><strong class="text-amber-400">Sinônimos:</strong> Faturamento Líquido, Vendas Líquidas, Receita Operacional Líquida.</div>
+                                <div class="leading-relaxed"><strong class="text-amber-400">Interpretação:</strong> É o verdadeiro ponto de partida da empresa. É o dinheiro que efetivamente sobrou das vendas para cobrir os custos e gerar lucro.</div>
+                            </div>
+                        </div>
+                        <div class="w-full md:w-48 shrink-0 text-left md:text-right text-xl font-bold text-amber-900 pr-3" id="res_receitaLiquida">R$ 0,00</div>
+                    </div>
+                </div>
+
+                <!-- Bloco 2: Produto / CMV -->
+                <div class="border-b-2 border-amber-100 break-avoid">
+                    <div class="bg-amber-200 px-6 py-2 text-sm font-black text-amber-900 border-b border-amber-300 uppercase tracking-wide">2. Custo do Produto</div>
+                    
+                    <div class="flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-4 py-2 pr-4 md:pr-6 pl-8 md:pl-14 bg-red-50/20 border-b border-gray-100">
+                        <div class="w-full md:w-24 shrink-0 text-left md:text-right font-mono font-bold text-red-600" id="perc_insumos">0,0%</div>
+                        <div class="flex-1 flex items-center gap-1.5 relative group cursor-help text-red-800 min-w-0">
+                            <label class="font-bold text-[13px] sm:text-sm md:text-base whitespace-nowrap tracking-tight truncate"><span class="text-red-400/70 font-normal mr-1 select-none">↳</span>(Menos) Insumos e Ingredientes</label>
+                            <span class="text-stone-400 hover:text-red-600 shrink-0 transition-colors no-print"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></span>
+                            <div class="absolute left-0 top-full mt-2 hidden group-hover:block w-72 md:w-80 p-4 bg-stone-800 text-white text-xs rounded-lg shadow-xl z-50 whitespace-normal border border-stone-600">
+                                <div class="mb-1.5"><strong class="text-red-300">Categoria:</strong> Custo Variável Direto (CMV).</div>
+                                <div class="mb-1.5"><strong class="text-red-300">Sinônimos:</strong> Matéria-Prima, Custo Direto.</div>
+                                <div class="leading-relaxed"><strong class="text-red-300">Interpretação:</strong> O peso financeiro da matéria-prima. O cálculo foi travado pois reflete o Custo da Porção da Ficha Técnica vezes a Quantidade de Vendas.</div>
+                            </div>
+                        </div>
+                        <div class="w-full md:w-48 shrink-0 currency-input-wrapper">
+                            <input type="number" id="val_insumos" class="currency-input w-full p-2 border border-red-300 bg-red-100/60 rounded font-bold text-red-900 cursor-not-allowed" readonly>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-4 py-2 pr-4 md:pr-6 pl-8 md:pl-14 bg-gray-50/40">
+                        <div class="w-full md:w-24 shrink-0 text-left md:text-right font-mono font-bold text-red-600" id="perc_embalagens">0,0%</div>
+                        <div class="flex-1 flex items-center gap-1.5 relative group cursor-help text-red-700 min-w-0">
+                            <label class="font-medium text-[13px] sm:text-sm md:text-base whitespace-nowrap tracking-tight truncate"><span class="text-gray-400/70 font-normal mr-1 select-none">↳</span>(Menos) Embalagens e Descartáveis</label>
+                            <span class="text-stone-400 hover:text-red-500 shrink-0 transition-colors no-print"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></span>
+                            <div class="absolute left-0 top-full mt-2 hidden group-hover:block w-72 md:w-80 p-4 bg-stone-800 text-white text-xs rounded-lg shadow-xl z-50 whitespace-normal border border-stone-600">
+                                <div class="mb-1.5"><strong class="text-red-300">Categoria:</strong> Custo Variável Direto (CMV).</div>
+                                <div class="mb-1.5"><strong class="text-red-300">Sinônimos:</strong> Custo de Embalagem, Insumos Secundários.</div>
+                                <div class="leading-relaxed"><strong class="text-red-300">Interpretação:</strong> O gasto para acomodar e entregar o produto. Exige controle rigoroso, especialmente se o foco da loja for delivery ou itens para viagem.</div>
+                            </div>
+                        </div>
+                        <div class="w-full md:w-48 shrink-0 currency-input-wrapper">
+                            <input type="number" id="val_embalagens" class="currency-input w-full p-2 border border-red-200 bg-white rounded font-semibold text-red-800" value="2000" oninput="calcularValores()">
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-4 p-4 md:px-6 bg-emerald-50 border-t border-emerald-200">
+                        <div class="w-full md:w-24 shrink-0 text-left md:text-right font-mono font-black text-emerald-700" id="perc_lucroBruto">0,0%</div>
+                        <div class="flex-1 flex items-center gap-1.5 relative group cursor-help min-w-0">
+                            <label class="font-bold text-[14px] sm:text-lg text-emerald-800 whitespace-nowrap tracking-tight truncate">= Lucro Bruto (Viabilidade)</label>
+                            <span class="text-stone-400 hover:text-emerald-700 shrink-0 transition-colors no-print"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></span>
+                            <div class="absolute left-0 top-full mt-2 hidden group-hover:block w-72 md:w-80 p-4 bg-stone-800 text-white text-xs rounded-lg shadow-xl z-50 whitespace-normal border border-stone-600">
+                                <div class="mb-1.5"><strong class="text-emerald-400">Categoria:</strong> Margem de Contribuição.</div>
+                                <div class="mb-1.5"><strong class="text-emerald-400">Sinônimos:</strong> Margem de Contribuição Total, Resultado Bruto.</div>
+                                <div class="leading-relaxed"><strong class="text-emerald-400">Interpretação:</strong> O termômetro de viabilidade. Indica se os produtos se pagam e se geram sobra suficiente para cobrir as contas fixas da loja.</div>
+                            </div>
+                        </div>
+                        <div class="w-full md:w-48 shrink-0 text-left md:text-right text-xl font-bold text-emerald-700 pr-3" id="res_lucroBruto">R$ 0,00</div>
+                    </div>
+                </div>
+
+                <!-- Bloco 3: Gestão e Operação -->
+                <div class="border-b-2 border-amber-100 break-avoid">
+                    <div class="bg-amber-200 px-6 py-2 text-sm font-black text-amber-900 border-b border-amber-300 uppercase tracking-wide">3. Gastos da Gestão e Operação</div>
+                    
+                    <div class="flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-4 py-2 pr-4 md:pr-6 pl-8 md:pl-14 bg-gray-50/40 border-b border-gray-100">
+                        <div class="w-full md:w-24 shrink-0 text-left md:text-right font-mono font-bold text-red-600" id="perc_pessoal">0,0%</div>
+                        <div class="flex-1 flex items-center gap-1.5 relative group cursor-help text-red-700 min-w-0">
+                            <label class="font-medium text-[13px] sm:text-sm md:text-base whitespace-nowrap tracking-tight truncate"><span class="text-gray-400/70 font-normal mr-1 select-none">↳</span>(Menos) Despesas com Pessoal</label>
+                            <span class="text-stone-400 hover:text-red-500 shrink-0 transition-colors no-print"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></span>
+                            <div class="absolute left-0 top-full mt-2 hidden group-hover:block w-72 md:w-80 p-4 bg-stone-800 text-white text-xs rounded-lg shadow-xl z-50 whitespace-normal border border-stone-600">
+                                <div class="mb-1.5"><strong class="text-red-300">Categoria:</strong> Despesa Operacional.</div>
+                                <div class="mb-1.5"><strong class="text-red-300">Sinônimos:</strong> Folha de Pagamento, Custos Trabalhistas, Mão de Obra.</div>
+                                <div class="leading-relaxed"><strong class="text-red-300">Interpretação:</strong> O custo da sua equipe. Deve ser monitorado e equilibrado com a produtividade para não comprometer a saúde financeira.</div>
+                            </div>
+                        </div>
+                        <div class="w-full md:w-48 shrink-0 currency-input-wrapper">
+                            <input type="number" id="val_pessoal" class="currency-input w-full p-2 border border-red-200 bg-white rounded font-semibold text-red-800" value="10000" oninput="calcularValores()">
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-4 py-2 pr-4 md:pr-6 pl-8 md:pl-14 bg-gray-50/40 border-b border-gray-100">
+                        <div class="w-full md:w-24 shrink-0 text-left md:text-right font-mono font-bold text-red-600" id="perc_ocupacao">0,0%</div>
+                        <div class="flex-1 flex items-center gap-1.5 relative group cursor-help text-red-700 min-w-0">
+                            <label class="font-medium text-[13px] sm:text-sm md:text-base whitespace-nowrap tracking-tight truncate"><span class="text-gray-400/70 font-normal mr-1 select-none">↳</span>(Menos) Despesas de Ocupação</label>
+                            <span class="text-stone-400 hover:text-red-500 shrink-0 transition-colors no-print"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></span>
+                            <div class="absolute left-0 top-full mt-2 hidden group-hover:block w-72 md:w-80 p-4 bg-stone-800 text-white text-xs rounded-lg shadow-xl z-50 whitespace-normal border border-stone-600">
+                                <div class="mb-1.5"><strong class="text-red-300">Categoria:</strong> Despesa Fixa.</div>
+                                <div class="mb-1.5"><strong class="text-red-300">Sinônimos:</strong> Custos de Estrutura, Custo do Ponto Físico.</div>
+                                <div class="leading-relaxed"><strong class="text-red-300">Interpretação:</strong> O custo de existir no ponto físico, aluguel, energia, água. É um peso estrutural que exige um faturamento mínimo constante para ser pago.</div>
+                            </div>
+                        </div>
+                        <div class="w-full md:w-48 shrink-0 currency-input-wrapper">
+                            <input type="number" id="val_ocupacao" class="currency-input w-full p-2 border border-red-200 bg-white rounded font-semibold text-red-800" value="6000" oninput="calcularValores()">
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-4 py-2 pr-4 md:pr-6 pl-8 md:pl-14 bg-gray-50/40 border-b border-gray-100">
+                        <div class="w-full md:w-24 shrink-0 text-left md:text-right font-mono font-bold text-red-600" id="perc_admMarketing">0,0%</div>
+                        <div class="flex-1 flex items-center gap-1.5 relative group cursor-help text-red-700 min-w-0">
+                            <label class="font-medium text-[13px] sm:text-sm md:text-base whitespace-nowrap tracking-tight truncate"><span class="text-gray-400/70 font-normal mr-1 select-none">↳</span>(Menos) Administrativo e Marketing</label>
+                            <span class="text-stone-400 hover:text-red-500 shrink-0 transition-colors no-print"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></span>
+                            <div class="absolute left-0 top-full mt-2 hidden group-hover:block w-72 md:w-80 p-4 bg-stone-800 text-white text-xs rounded-lg shadow-xl z-50 whitespace-normal border border-stone-600">
+                                <div class="mb-1.5"><strong class="text-red-300">Categoria:</strong> Despesa Operacional.</div>
+                                <div class="mb-1.5"><strong class="text-red-300">Sinônimos:</strong> Despesas Gerais, Gastos de Vendas e Administrativos.</div>
+                                <div class="leading-relaxed"><strong class="text-red-300">Interpretação:</strong> Gastos para gerir e atrair clientes. Devem ser encarados como ferramentas estratégicas que precisam trazer retorno em vendas ou eficiência.</div>
+                            </div>
+                        </div>
+                        <div class="w-full md:w-48 shrink-0 currency-input-wrapper">
+                            <input type="number" id="val_admMarketing" class="currency-input w-full p-2 border border-red-200 bg-white rounded font-semibold text-red-800" value="3000" oninput="calcularValores()">
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-4 py-2 pr-4 md:pr-6 pl-8 md:pl-14 bg-gray-50/40">
+                        <div class="w-full md:w-24 shrink-0 text-left md:text-right font-mono font-bold text-red-600" id="perc_depreciacao">0,0%</div>
+                        <div class="flex-1 flex items-center gap-1.5 relative group cursor-help text-red-700 min-w-0">
+                            <label class="font-medium text-[13px] sm:text-sm md:text-base whitespace-nowrap tracking-tight truncate"><span class="text-gray-400/70 font-normal mr-1 select-none">↳</span>(Menos) Depreciação e Amortização</label>
+                            <span class="text-stone-400 hover:text-red-500 shrink-0 transition-colors no-print"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></span>
+                            <div class="absolute left-0 top-full mt-2 hidden group-hover:block w-72 md:w-80 p-4 bg-stone-800 text-white text-xs rounded-lg shadow-xl z-50 whitespace-normal border border-stone-600">
+                                <div class="mb-1.5"><strong class="text-red-300">Categoria:</strong> Custo Não Desembolsável.</div>
+                                <div class="mb-1.5"><strong class="text-red-300">Sinônimos:</strong> Desgaste de Ativos, Perda de Valor Contábil, D&A.</div>
+                                <div class="leading-relaxed"><strong class="text-red-300">Interpretação:</strong> Reconhecimento de que suas máquinas envelhecem. Ajuda a criar uma reserva mental para futuras trocas de equipamentos, sem descapitalizar a loja subitamente.</div>
+                            </div>
+                        </div>
+                        <div class="w-full md:w-48 shrink-0 currency-input-wrapper">
+                            <input type="number" id="val_depreciacao" class="currency-input w-full p-2 border border-red-200 bg-white rounded font-semibold text-red-800" value="1000" oninput="calcularValores()">
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-4 p-4 md:px-6 bg-blue-50 border-t border-blue-200">
+                        <div class="w-full md:w-24 shrink-0 text-left md:text-right font-mono font-black text-blue-800" id="perc_ebit">0,0%</div>
+                        <div class="flex-1 flex items-center gap-1.5 relative group cursor-help min-w-0">
+                            <label class="font-bold text-[14px] sm:text-lg text-blue-900 whitespace-nowrap tracking-tight truncate">= Lucro Operacional (EBIT)</label>
+                            <span class="text-stone-400 hover:text-blue-700 shrink-0 transition-colors no-print"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></span>
+                            <div class="absolute left-0 top-full mt-2 hidden group-hover:block w-72 md:w-80 p-4 bg-stone-800 text-white text-xs rounded-lg shadow-xl z-50 whitespace-normal border border-stone-600">
+                                <div class="mb-1.5"><strong class="text-blue-300">Categoria:</strong> Resultado da Gestão.</div>
+                                <div class="mb-1.5"><strong class="text-blue-300">Sinônimos:</strong> LAJIR, Resultado Operacional.</div>
+                                <div class="leading-relaxed"><strong class="text-blue-300">Interpretação:</strong> A nota final da sua competência operacional. Mostra se o seu modelo de negócio ganha dinheiro sozinho, antes de envolver bancos ou o governo.</div>
+                            </div>
+                        </div>
+                        <div class="w-full md:w-48 shrink-0 text-left md:text-right text-xl font-bold text-blue-900 pr-3" id="res_ebit">R$ 0,00</div>
+                    </div>
+
+                    <!-- Indicador de Caixa: EBITDA -->
+                    <div class="flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-4 px-4 md:px-6 py-2 bg-gray-100 border-t border-gray-200 opacity-90">
+                        <div class="w-full md:w-24 shrink-0 text-left md:text-right font-mono font-bold text-sm text-gray-600" id="perc_ebitda">0,0%</div>
+                        <div class="flex-1 flex items-center gap-1.5 relative group cursor-help min-w-0">
+                            <label class="font-semibold text-[13px] sm:text-sm text-gray-700 whitespace-nowrap tracking-tight truncate">Indicador de Caixa: EBITDA</label>
+                            <span class="text-stone-400 hover:text-gray-600 shrink-0 transition-colors no-print"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></span>
+                            <div class="absolute left-0 top-full mt-2 hidden group-hover:block w-72 md:w-80 p-4 bg-stone-800 text-white text-xs rounded-lg shadow-xl z-50 whitespace-normal border border-stone-600">
+                                <div class="mb-1.5"><strong class="text-gray-300">Categoria:</strong> Potencial de Caixa.</div>
+                                <div class="mb-1.5"><strong class="text-gray-300">Sinônimos:</strong> LAJIDA, Geração Operacional de Caixa Livre.</div>
+                                <div class="leading-relaxed"><strong class="text-gray-300">Interpretação:</strong> É o lucro operacional devolvendo a depreciação, que não tirou dinheiro físico. Indica a força real do negócio em gerar dinheiro vivo a curto prazo.</div>
+                            </div>
+                        </div>
+                        <div class="w-full md:w-48 shrink-0 text-left md:text-right text-md font-bold text-gray-700 pr-3" id="res_ebitda">R$ 0,00</div>
+                    </div>
+                </div>
+
+                <!-- Bloco 4: Financeiro e Final -->
+                <div class="break-avoid">
+                    <div class="bg-amber-200 px-6 py-2 text-sm font-black text-amber-900 border-b border-amber-300 uppercase tracking-wide">4. Despesas Financeiras e Governo</div>
+                    
+                    <div class="flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-4 py-2 pr-4 md:pr-6 pl-8 md:pl-14 bg-gray-50/40 border-b border-gray-100">
+                        <div class="w-full md:w-24 shrink-0 text-left md:text-right font-mono font-bold text-red-600" id="perc_taxasCartao">0,0%</div>
+                        <div class="flex-1 flex items-center gap-1.5 relative group cursor-help text-red-700 min-w-0">
+                            <label class="font-medium text-[13px] sm:text-sm md:text-base whitespace-nowrap tracking-tight truncate"><span class="text-gray-400/70 font-normal mr-1 select-none">↳</span>(Menos) Taxas de Cartão</label>
+                            <span class="text-stone-400 hover:text-red-500 shrink-0 transition-colors no-print"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></span>
+                            <div class="absolute left-0 top-full mt-2 hidden group-hover:block w-72 md:w-80 p-4 bg-stone-800 text-white text-xs rounded-lg shadow-xl z-50 whitespace-normal border border-stone-600">
+                                <div class="mb-1.5"><strong class="text-red-300">Categoria:</strong> Despesa Financeira Variável.</div>
+                                <div class="mb-1.5"><strong class="text-red-300">Sinônimos:</strong> Despesas de Adquirência, Custos com Maquininhas, Taxas de Transação.</div>
+                                <div class="leading-relaxed"><strong class="text-red-300">Interpretação:</strong> O pedágio cobrado pela conveniência de receber digitalmente. Pode ser otimizado através de negociações constantes com as empresas de maquininhas.</div>
+                            </div>
+                        </div>
+                        <div class="w-full md:w-48 shrink-0 currency-input-wrapper">
+                            <input type="number" id="val_taxasCartao" class="currency-input w-full p-2 border border-red-200 bg-white rounded font-semibold text-red-800" value="1000" oninput="calcularValores()">
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-4 py-2 pr-4 md:pr-6 pl-8 md:pl-14 bg-gray-50/40 border-b border-gray-100">
+                        <div class="w-full md:w-24 shrink-0 text-left md:text-right font-mono font-bold text-red-600" id="perc_juros">0,0%</div>
+                        <div class="flex-1 flex items-center gap-1.5 relative group cursor-help text-red-700 min-w-0">
+                            <label class="font-medium text-[13px] sm:text-sm md:text-base whitespace-nowrap tracking-tight truncate"><span class="text-gray-400/70 font-normal mr-1 select-none">↳</span>(Menos) Juros e Tarifas Bancárias</label>
+                            <span class="text-stone-400 hover:text-red-500 shrink-0 transition-colors no-print"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></span>
+                            <div class="absolute left-0 top-full mt-2 hidden group-hover:block w-72 md:w-80 p-4 bg-stone-800 text-white text-xs rounded-lg shadow-xl z-50 whitespace-normal border border-stone-600">
+                                <div class="mb-1.5"><strong class="text-red-300">Categoria:</strong> Despesa Financeira Fixa/Variável.</div>
+                                <div class="mb-1.5"><strong class="text-red-300">Sinônimos:</strong> Despesas Financeiras Líquidas, Encargos Financeiros, Custo de Capital.</div>
+                                <div class="leading-relaxed"><strong class="text-red-300">Interpretação:</strong> O custo do dinheiro emprestado ou serviços do banco. Um valor muito alto aqui mostra forte dependência de capital de terceiros para sobreviver.</div>
+                            </div>
+                        </div>
+                        <div class="w-full md:w-48 shrink-0 currency-input-wrapper">
+                            <input type="number" id="val_juros" class="currency-input w-full p-2 border border-red-200 bg-white rounded font-semibold text-red-800" value="500" oninput="calcularValores()">
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-4 py-2 pr-4 md:pr-6 pl-8 md:pl-14 bg-gray-50/40">
+                        <div class="w-full md:w-24 shrink-0 text-left md:text-right font-mono font-bold text-red-600" id="perc_impostosLucro">0,0%</div>
+                        <div class="flex-1 flex items-center gap-1.5 relative group cursor-help text-red-700 min-w-0">
+                            <label class="font-medium text-[13px] sm:text-sm md:text-base whitespace-nowrap tracking-tight truncate"><span class="text-gray-400/70 font-normal mr-1 select-none">↳</span>(Menos) Imposto sobre o Lucro</label>
+                            <span class="text-stone-400 hover:text-red-500 shrink-0 transition-colors no-print"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></span>
+                            <div class="absolute left-0 top-full mt-2 hidden group-hover:block w-72 md:w-80 p-4 bg-stone-800 text-white text-xs rounded-lg shadow-xl z-50 whitespace-normal border border-stone-600">
+                                <div class="mb-1.5"><strong class="text-red-300">Categoria:</strong> Obrigação Fiscal de Fim de Linha.</div>
+                                <div class="mb-1.5"><strong class="text-red-300">Sinônimos:</strong> IRPJ/CSLL, Tributos sobre o Resultado, Provisão para Impostos.</div>
+                                <div class="leading-relaxed"><strong class="text-red-300">Interpretação:</strong> Parte do seu lucro repassada ao governo. Cafeterias enquadradas no Simples Nacional geralmente deixam zerado, pois já pagaram na primeira etapa.</div>
+                            </div>
+                        </div>
+                        <div class="w-full md:w-48 shrink-0 currency-input-wrapper">
+                            <input type="number" id="val_impostosLucro" class="currency-input w-full p-2 border border-red-200 bg-white rounded font-semibold text-red-800" value="500" oninput="calcularValores()">
+                        </div>
+                    </div>
+
+                    <!-- Linha Resultado Final e Alerta de Risco -->
+                    <div class="flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-4 p-5 bg-green-100/60 border-t-4 border-green-500 mt-2 rounded-b-lg">
+                        <div class="w-full md:w-24 shrink-0 text-left md:text-right font-mono font-black text-2xl text-green-800" id="perc_lucroLiquido">0,0%</div>
+                        <div class="flex-1 min-w-0 flex flex-col justify-center">
+                            <div class="flex items-center gap-1.5 relative group cursor-help w-fit">
+                                <label class="font-black text-[20px] sm:text-2xl text-green-900 whitespace-nowrap tracking-tight truncate">= Lucro Líquido</label>
+                                <span class="text-stone-400 hover:text-green-800 shrink-0 transition-colors no-print"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></span>
+                                <div class="absolute left-0 bottom-full mb-2 hidden group-hover:block w-72 md:w-80 p-4 bg-stone-800 text-white text-xs rounded-lg shadow-xl z-50 whitespace-normal border border-stone-600">
+                                    <div class="mb-1.5"><strong class="text-green-400">Categoria:</strong> Resultado Final.</div>
+                                    <div class="mb-1.5"><strong class="text-green-400">Sinônimos:</strong> Resultado Líquido, Lucro do Exercício, "A Última Linha".</div>
+                                    <div class="leading-relaxed"><strong class="text-green-400">Interpretação:</strong> A verdadeira recompensa do seu esforço. É o dinheiro livre de absolutamente todas as obrigações, pronto para ir ao seu bolso ou ser reinvestido no negócio.</div>
+                                </div>
+                            </div>
+                            
+                            <div class="mt-2 flex flex-col items-start">
+                                <div class="text-[13px] font-bold text-gray-700" id="res_pontoEquilibrio_info">Empate em: 0 unidades</div>
+                                <div id="alerta_risco_box" class="mt-1 px-3 py-2 border rounded-md text-xs font-bold transition-all">
+                                    Calculando risco...
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="w-full md:w-48 shrink-0 text-left md:text-right text-3xl md:text-4xl font-black text-green-900 pr-3" id="res_lucroLiquido">R$ 0,00</div>
+                    </div>
+                </div>
+
+                <!-- Nova Seção de Gráfico Dinâmico -->
+                <div class="p-6 bg-white border-t border-gray-200 break-avoid">
+                    <h3 class="text-lg font-black text-amber-900 mb-4 text-center">Raio-X da Receita</h3>
+                    <div class="w-full max-w-sm mx-auto relative h-64">
+                        <canvas id="graficoRaioX"></canvas>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- Seção 2: Ficha Técnica Didática -->
+        <section class="bg-white rounded-2xl shadow-lg overflow-hidden border border-stone-200 mt-10 print-border break-avoid">
+            <div class="bg-stone-800 text-stone-50 p-6">
+                <h2 class="text-2xl font-semibold flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" y1="2" x2="6" y2="4"/><line x1="10" y1="2" x2="10" y2="4"/><line x1="14" y1="2" x2="14" y2="4"/></svg>
+                    Ficha Técnica e Precificação Base
+                </h2>
+            </div>
+
+            <div class="p-5 md:p-8">
+                <p class="mb-4 text-stone-700 text-sm md:text-base">Exemplo do seu produto guia: <strong>Café Coado (uma unidade)</strong>. Os custos e preços definidos aqui alimentam automaticamente a DRE acima com base no volume de vendas.</p>
+                
+                <div class="overflow-x-auto rounded-lg border border-stone-200">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-stone-100 text-stone-800">
+                                <th class="p-3 border-b border-stone-200 font-semibold">Insumo</th>
+                                <th class="p-3 border-b border-stone-200 font-semibold">Custo da Embalagem</th>
+                                <th class="p-3 border-b border-stone-200 font-semibold">Quantidade na Receita</th>
+                                <th class="p-3 border-b border-stone-200 font-semibold">Custo na Porção</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-sm">
+                            <tr class="hover:bg-stone-50">
+                                <td class="p-3 border-b border-stone-100 font-medium">Café Especial</td>
+                                <td class="p-3 border-b border-stone-100">
+                                    <div class="flex items-center gap-1">
+                                        R$ <input type="number" id="ft_cafe_preco" class="w-14 p-1 border rounded" value="40" oninput="calcularValores()">
+                                        / <input type="number" id="ft_cafe_peso" class="w-14 p-1 border rounded" value="250" oninput="calcularValores()"> g
+                                    </div>
+                                </td>
+                                <td class="p-3 border-b border-stone-100">
+                                    <input type="number" id="ft_cafe_uso" class="w-14 p-1 border rounded" value="4" oninput="calcularValores()"> g
+                                </td>
+                                <td class="p-3 border-b border-stone-100 font-semibold" id="res_ft_cafe_custo">R$ 2,40</td>
+                            </tr>
+                            <tr class="hover:bg-stone-50">
+                                <td class="p-3 border-b border-stone-100 font-medium">Filtro de Papel</td>
+                                <td class="p-3 border-b border-stone-100">
+                                    <div class="flex items-center gap-1">
+                                        R$ <input type="number" id="ft_filtro_preco" class="w-14 p-1 border rounded" value="30" oninput="calcularValores()">
+                                        / <input type="number" id="ft_filtro_qtd" class="w-14 p-1 border rounded" value="100" oninput="calcularValores()"> un
+                                    </div>
+                                </td>
+                                <td class="p-3 border-b border-stone-100">
+                                    <input type="number" id="ft_filtro_uso" class="w-14 p-1 border rounded" value="1" oninput="calcularValores()"> un
+                                </td>
+                                <td class="p-3 border-b border-stone-100 font-semibold" id="res_ft_filtro_custo">R$ 0,30</td>
+                            </tr>
+                            <tr class="hover:bg-stone-50">
+                                <td class="p-3 border-b border-stone-100 font-medium">Água</td>
+                                <td class="p-3 border-b border-stone-100 text-stone-500">Estimativa</td>
+                                <td class="p-3 border-b border-stone-100 text-stone-500">50 ml</td>
+                                <td class="p-3 border-b border-stone-100 font-semibold">
+                                    R$ <input type="number" id="ft_agua_custo" class="w-14 p-1 border rounded" value="0.05" step="0.01" oninput="calcularValores()">
+                                </td>
+                            </tr>
+                            <tr class="bg-red-50/50">
+                                <td class="p-3 border-b border-stone-200 font-medium text-red-600">
+                                    <div class="flex items-center gap-1.5 relative group cursor-help w-fit">
+                                        Margem de Perda (5%)
+                                        <span class="text-stone-400 hover:text-red-500 shrink-0 transition-colors no-print"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></span>
+                                        <div class="absolute left-0 bottom-full mb-2 hidden group-hover:block w-72 md:w-80 p-4 bg-stone-800 text-white text-xs rounded-lg shadow-xl z-50 whitespace-normal border border-stone-600 text-left font-normal">
+                                            <div class="mb-1.5"><strong class="text-red-300">Categoria:</strong> Custo de Ineficiência.</div>
+                                            <div class="mb-1.5"><strong class="text-red-300">Sinônimos:</strong> Quebra, Desperdício, Margem de Segurança.</div>
+                                            <div class="leading-relaxed"><strong class="text-red-300">Interpretação:</strong> Margem de segurança financeira. Cobre os naturais expurgos do moedor e pequenos acidentes da operação.</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="p-3 border-b border-stone-200"></td>
+                                <td class="p-3 border-b border-stone-200"></td>
+                                <td class="p-3 border-b border-stone-200 font-semibold text-red-800" id="res_ft_perda">R$ 0,13</td>
+                            </tr>
+                        </tbody>
+                        <tfoot>
+                            <tr class="bg-stone-100">
+                                <td colspan="3" class="p-3 text-right font-bold">Custo Total da Porção (CMV Unitário):</td>
+                                <td class="p-3 font-bold text-red-700 text-lg" id="res_ft_total">R$ 2,88</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+
+                <div class="mt-6 bg-amber-50 p-5 rounded-xl border border-amber-200">
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-center">
+                        <div class="bg-amber-100 p-3 rounded-lg border border-amber-300 h-full flex flex-col justify-center">
+                            <p class="text-xs text-stone-600 uppercase font-bold tracking-wider">Preço de Venda</p>
+                            <div class="flex items-center gap-1 mt-1">
+                                <span class="text-2xl font-black text-amber-800">R$</span>
+                                <input type="number" id="ft_preco_venda" class="w-full bg-white border-b-2 border-amber-400 text-2xl font-black text-amber-800 px-1 rounded-t" value="14.00" step="0.50" oninput="calcularValores()">
+                            </div>
+                        </div>
+                        
+                        <div class="bg-white p-3 rounded-lg border border-stone-200 shadow-sm flex flex-col justify-center h-full">
+                            <div class="flex items-center gap-1.5 relative group cursor-help w-fit">
+                                <p class="text-xs text-stone-500 uppercase font-bold tracking-wider">CMV %</p>
+                                <span class="text-stone-400 hover:text-red-500 shrink-0 transition-colors no-print"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></span>
+                                <div class="absolute left-0 bottom-full mb-2 hidden group-hover:block w-72 md:w-80 p-4 bg-stone-800 text-white text-xs rounded-lg shadow-xl z-50 whitespace-normal border border-stone-600 text-left font-normal">
+                                    <div class="mb-1.5"><strong class="text-emerald-300">Categoria:</strong> Indicador de Margem.</div>
+                                    <div class="mb-1.5"><strong class="text-emerald-300">Sinônimos:</strong> Taxa de Custo, Margem de Custo.</div>
+                                    <div class="leading-relaxed"><strong class="text-emerald-300">Interpretação:</strong> O quanto o custo representa do preço de venda. O ideal no setor de alimentação fica entre 25% e 30%.</div>
+                                </div>
+                            </div>
+                            <p class="text-2xl font-black text-red-600 mt-1" id="res_ft_cmv_percentual">20,5%</p>
+                            <p class="text-[10px] text-stone-400 font-mono mt-1.5 pt-1.5 border-t border-stone-100" id="calc_cmv_detalhe">(R$ 2,88 / R$ 14,00) × 100</p>
+                        </div>
+
+                        <div class="bg-white p-3 rounded-lg border border-stone-200 shadow-sm flex flex-col justify-center h-full">
+                            <div class="flex items-center gap-1.5 relative group cursor-help w-fit">
+                                <p class="text-xs text-stone-500 uppercase font-bold tracking-wider">Markup</p>
+                                <span class="text-stone-400 hover:text-blue-500 shrink-0 transition-colors no-print"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></span>
+                                <div class="absolute right-0 md:left-0 bottom-full mb-2 hidden group-hover:block w-72 md:w-80 p-4 bg-stone-800 text-white text-xs rounded-lg shadow-xl z-50 whitespace-normal border border-stone-600 text-left font-normal">
+                                    <div class="mb-1.5"><strong class="text-blue-300">Categoria:</strong> Multiplicador de Preço.</div>
+                                    <div class="mb-1.5"><strong class="text-blue-300">Sinônimos:</strong> Índice de Precificação, Multiplicador Unitário.</div>
+                                    <div class="leading-relaxed"><strong class="text-blue-300">Interpretação:</strong> Quantas vezes o custo financeiro foi multiplicado para formar o preço final. Ferramenta chave de precificação.</div>
+                                </div>
+                            </div>
+                            <p class="text-2xl font-black text-blue-600 mt-1" id="res_ft_markup">4,86x</p>
+                            <p class="text-[10px] text-stone-400 font-mono mt-1.5 pt-1.5 border-t border-stone-100" id="calc_markup_detalhe">R$ 14,00 / R$ 2,88</p>
+                        </div>
+
+                        <div class="bg-white p-3 rounded-lg border border-stone-200 shadow-sm flex flex-col justify-center h-full">
+                            <div class="flex items-center gap-1.5 relative group cursor-help w-fit">
+                                <p class="text-xs text-stone-500 uppercase font-bold tracking-wider">Margem Bruta</p>
+                                <span class="text-stone-400 hover:text-green-500 shrink-0 transition-colors no-print"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></span>
+                                <div class="absolute right-0 bottom-full mb-2 hidden group-hover:block w-72 md:w-80 p-4 bg-stone-800 text-white text-xs rounded-lg shadow-xl z-50 whitespace-normal border border-stone-600 text-left font-normal">
+                                    <div class="mb-1.5"><strong class="text-green-400">Categoria:</strong> Lucro do Produto.</div>
+                                    <div class="mb-1.5"><strong class="text-green-400">Sinônimos:</strong> Lucro Unitário, Margem de Contribuição Unitária.</div>
+                                    <div class="leading-relaxed"><strong class="text-green-400">Interpretação:</strong> O valor real, e a porcentagem, que sobra no caixa após descontar o custo dos ingredientes, usado para pagar as despesas do negócio.</div>
+                                </div>
+                            </div>
+                            <p class="text-2xl font-black text-emerald-600 mt-1" id="res_ft_margem_reais">R$ 11,12</p>
+                            <p class="text-[10px] text-stone-400 font-mono mt-1.5 pt-1.5 border-t border-stone-100" id="calc_margem_detalhe">R$ 14,00 - R$ 2,88</p>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+    </div>
+
+    <script>
+        const formatarMoeda = (valor) => {
+            return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor);
+        };
+
+        // Variável global para manter a instância do gráfico e não duplicar
+        let graficoRaioXInstancia = null;
+
+        function calcularValores() {
+            // 1. CÁLCULO DA FICHA TÉCNICA
+            const cafePreco = parseFloat(document.getElementById('ft_cafe_preco').value) || 0;
+            const cafePeso = parseFloat(document.getElementById('ft_cafe_peso').value) || 1;
+            const cafeUso = parseFloat(document.getElementById('ft_cafe_uso').value) || 0;
+            const custoCafe = (cafePreco / cafePeso) * cafeUso;
+            document.getElementById('res_ft_cafe_custo').textContent = formatarMoeda(custoCafe);
+
+            const filtroPreco = parseFloat(document.getElementById('ft_filtro_preco').value) || 0;
+            const filtroQtd = parseFloat(document.getElementById('ft_filtro_qtd').value) || 1;
+            const filtroUso = parseFloat(document.getElementById('ft_filtro_uso').value) || 0;
+            const custoFiltro = (filtroPreco / filtroQtd) * filtroUso;
+            document.getElementById('res_ft_filtro_custo').textContent = formatarMoeda(custoFiltro);
+
+            const custoAgua = parseFloat(document.getElementById('ft_agua_custo').value) || 0;
+
+            const subtotal = custoCafe + custoFiltro + custoAgua;
+            const perda = subtotal * 0.05;
+            const custoPorcaoTotal = subtotal + perda;
+
+            document.getElementById('res_ft_perda').textContent = formatarMoeda(perda);
+            document.getElementById('res_ft_total').textContent = formatarMoeda(custoPorcaoTotal);
+
+            const precoVenda = parseFloat(document.getElementById('ft_preco_venda').value) || 1;
+            const cmvPercentual = precoVenda > 0 ? (custoPorcaoTotal / precoVenda) * 100 : 0;
+            const markup = custoPorcaoTotal > 0 ? (precoVenda / custoPorcaoTotal) : 0;
+            const margemReais = precoVenda - custoPorcaoTotal;
+
+            document.getElementById('res_ft_cmv_percentual').textContent = cmvPercentual.toFixed(1).replace('.', ',') + '%';
+            document.getElementById('calc_cmv_detalhe').textContent = `(${formatarMoeda(custoPorcaoTotal)} / ${formatarMoeda(precoVenda)}) × 100`;
+
+            document.getElementById('res_ft_markup').textContent = markup.toFixed(2).replace('.', ',') + 'x';
+            document.getElementById('calc_markup_detalhe').textContent = `${formatarMoeda(precoVenda)} / ${formatarMoeda(custoPorcaoTotal)}`;
+
+            document.getElementById('res_ft_margem_reais').textContent = formatarMoeda(margemReais);
+            document.getElementById('calc_margem_detalhe').textContent = `${formatarMoeda(precoVenda)} - ${formatarMoeda(custoPorcaoTotal)}`;
+
+            // 2. INTEGRAÇÃO COM A DRE
+            const qtdVendas = parseFloat(document.getElementById('val_qtdVendas').value) || 0;
+            const receitaBruta = qtdVendas * precoVenda;
+            const insumos = qtdVendas * custoPorcaoTotal;
+
+            document.getElementById('val_receitaBruta').value = receitaBruta.toFixed(2);
+            document.getElementById('val_insumos').value = insumos.toFixed(2);
+
+            // 3. CÁLCULO DA DRE
+            const getValor = (id) => parseFloat(document.getElementById(id).value) || 0;
+            
+            const descontos = getValor('val_descontos');
+            const devolucoes = getValor('val_devolucoes');
+            const impostosVenda = getValor('val_impostosVenda');
+            const deducoes = descontos + devolucoes + impostosVenda;
+
+            const embalagens = getValor('val_embalagens');
+            const cmv = insumos + embalagens;
+
+            const pessoal = getValor('val_pessoal');
+            const ocupacao = getValor('val_ocupacao');
+            const admMarketing = getValor('val_admMarketing');
+            const despOperacionais = pessoal + ocupacao + admMarketing;
+            
+            const depreciacao = getValor('val_depreciacao');
+            const taxasCartao = getValor('val_taxasCartao');
+            const juros = getValor('val_juros');
+            const despFinanceiras = taxasCartao + juros;
+            const impostosLucro = getValor('val_impostosLucro');
+
+            const calcPerc = (valor) => {
+                if (receitaBruta === 0) return '0,0%';
+                return ((Math.abs(valor) / receitaBruta) * 100).toFixed(1).replace('.', ',') + '%';
+            };
+
+            const receitaLiquida = receitaBruta - deducoes;
+            const lucroBruto = receitaLiquida - cmv;
+            const despesasTotalOperacao = despOperacionais + depreciacao;
+            const ebit = lucroBruto - despesasTotalOperacao;
+            const lucroLiquido = ebit - despFinanceiras - impostosLucro;
+
+            // Preenche textos da DRE
+            document.getElementById('res_receitaLiquida').textContent = formatarMoeda(receitaLiquida);
+            document.getElementById('res_lucroBruto').textContent = formatarMoeda(lucroBruto);
+            document.getElementById('res_ebit').textContent = formatarMoeda(ebit);
+            document.getElementById('res_lucroLiquido').textContent = formatarMoeda(lucroLiquido);
+
+            document.getElementById('perc_receitaBruta').textContent = calcPerc(receitaBruta);
+            document.getElementById('perc_descontos').textContent = calcPerc(descontos);
+            document.getElementById('perc_devolucoes').textContent = calcPerc(devolucoes);
+            document.getElementById('perc_impostosVenda').textContent = calcPerc(impostosVenda);
+            document.getElementById('perc_receitaLiquida').textContent = calcPerc(receitaLiquida);
+            document.getElementById('perc_insumos').textContent = calcPerc(insumos);
+            document.getElementById('perc_embalagens').textContent = calcPerc(embalagens);
+            document.getElementById('perc_lucroBruto').textContent = calcPerc(lucroBruto);
+            document.getElementById('perc_pessoal').textContent = calcPerc(pessoal);
+            document.getElementById('perc_ocupacao').textContent = calcPerc(ocupacao);
+            document.getElementById('perc_admMarketing').textContent = calcPerc(admMarketing);
+            document.getElementById('perc_depreciacao').textContent = calcPerc(depreciacao);
+            document.getElementById('perc_ebit').textContent = calcPerc(ebit);
+            document.getElementById('perc_taxasCartao').textContent = calcPerc(taxasCartao);
+            document.getElementById('perc_juros').textContent = calcPerc(juros);
+            document.getElementById('perc_impostosLucro').textContent = calcPerc(impostosLucro);
+            document.getElementById('perc_lucroLiquido').textContent = calcPerc(lucroLiquido);
+
+            // Cores dinâmicas Lucro
+            const resLucroLiquido = document.getElementById('res_lucroLiquido');
+            const percLucroLiquido = document.getElementById('perc_lucroLiquido');
+            if (lucroLiquido >= 0) {
+                resLucroLiquido.className = "w-full md:w-48 shrink-0 text-left md:text-right text-3xl md:text-4xl font-black text-green-900 pr-3";
+                percLucroLiquido.className = "w-full md:w-24 shrink-0 text-left md:text-right font-mono font-black text-2xl text-green-800";
+            } else {
+                resLucroLiquido.className = "w-full md:w-48 shrink-0 text-left md:text-right text-3xl md:text-4xl font-black text-red-600 pr-3";
+                percLucroLiquido.className = "w-full md:w-24 shrink-0 text-left md:text-right font-mono font-black text-2xl text-red-600";
+            }
+
+            // 4. LÓGICA DO ALERTA DE RISCO E PONTO DE EQUILÍBRIO
+            const despesasFixas = pessoal + ocupacao + admMarketing + depreciacao + juros;
+            const despesasVariaveisUnitaria = qtdVendas > 0 ? (deducoes + embalagens + taxasCartao + impostosLucro) / qtdVendas : 0;
+            const margemContribuicaoUnitaria = precoVenda - custoPorcaoTotal - despesasVariaveisUnitaria;
+            
+            const infoBox = document.getElementById('res_pontoEquilibrio_info');
+            const alertBox = document.getElementById('alerta_risco_box');
+
+            if (margemContribuicaoUnitaria > 0) {
+                const pontoEquilibrio = Math.ceil(despesasFixas / margemContribuicaoUnitaria);
+                infoBox.textContent = `Ponto de Equilíbrio: ${pontoEquilibrio.toLocaleString('pt-BR')} unidades`;
+
+                const margemSeguranca = ((qtdVendas - pontoEquilibrio) / pontoEquilibrio) * 100;
+                const excedente = qtdVendas - pontoEquilibrio;
+
+                if (qtdVendas < pontoEquilibrio) {
+                    alertBox.className = "mt-1 px-3 py-2 border rounded-md text-xs font-bold transition-all bg-red-100 text-red-800 border-red-300";
+                    alertBox.innerHTML = "⚠️ PERIGO: Prejuízo financeiro projetado.";
+                } else if (margemSeguranca <= 20) {
+                    alertBox.className = "mt-1 px-3 py-2 border rounded-md text-xs font-bold transition-all bg-yellow-100 text-yellow-800 border-yellow-400";
+                    alertBox.innerHTML = `⚠️ ATENÇÃO: Margem de erro muito curta (+${margemSeguranca.toFixed(0)}%).<br>` +
+                                         `<div class="font-normal text-[11px] mt-1.5 leading-tight text-yellow-900/80">` +
+                                         `Numerador: ${qtdVendas.toLocaleString('pt-BR')} projetadas, menos ${pontoEquilibrio.toLocaleString('pt-BR')} do Equilíbrio, restam ${excedente.toLocaleString('pt-BR')} excedentes.<br>` +
+                                         `Denominador: ${pontoEquilibrio.toLocaleString('pt-BR')} unidades. Conta: (${excedente.toLocaleString('pt-BR')} / ${pontoEquilibrio.toLocaleString('pt-BR')}) × 100 = ${margemSeguranca.toFixed(0)}%.` +
+                                         `</div>`;
+                } else {
+                    alertBox.className = "mt-1 px-3 py-2 border rounded-md text-xs font-bold transition-all bg-green-100 text-green-800 border-green-300";
+                    alertBox.innerHTML = `✅ OPERAÇÃO SAUDÁVEL: Base segura (+${margemSeguranca.toFixed(0)}%).<br>` +
+                                         `<div class="font-normal text-[11px] mt-1.5 leading-tight text-green-900/80">` +
+                                         `Numerador: ${qtdVendas.toLocaleString('pt-BR')} projetadas, menos ${pontoEquilibrio.toLocaleString('pt-BR')} do Equilíbrio, restam ${excedente.toLocaleString('pt-BR')} excedentes.<br>` +
+                                         `Denominador: ${pontoEquilibrio.toLocaleString('pt-BR')} unidades. Conta: (${excedente.toLocaleString('pt-BR')} / ${pontoEquilibrio.toLocaleString('pt-BR')}) × 100 = ${margemSeguranca.toFixed(0)}%.` +
+                                         `</div>`;
+                }
+            } else {
+                infoBox.textContent = "Ponto de Equilíbrio: Inválido";
+                alertBox.className = "mt-1 px-3 py-2 border rounded-md text-xs font-bold transition-all bg-red-600 text-white border-red-800";
+                alertBox.innerHTML = "🚨 CRÍTICO: Preço de Venda não cobre nem o custo dos ingredientes e variáveis!";
+            }
+
+            // 5. ATUALIZAÇÃO DO GRÁFICO (Chart.js)
+            atualizarGrafico(cmv, despOperacionais, despFinanceiras + impostosLucro + deducoes, lucroLiquido);
+        }
+
+        function atualizarGrafico(custoProduto, despGestao, despGovernoBancos, lucro) {
+            const ctx = document.getElementById('graficoRaioX').getContext('2d');
+            
+            // Tratamento caso o lucro seja negativo (para não quebrar o gráfico visualmente)
+            const valorLucroGrafico = lucro > 0 ? lucro : 0;
+            
+            if (graficoRaioXInstancia) {
+                graficoRaioXInstancia.destroy();
+            }
+
+            graficoRaioXInstancia = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: [
+                        'Custo do Produto (CMV)', 
+                        'Gastos de Gestão', 
+                        'Bancos, Impostos e Deduções', 
+                        lucro > 0 ? 'Lucro Líquido' : 'Lucro Zerado/Prejuízo'
+                    ],
+                    datasets: [{
+                        data: [custoProduto, despGestao, despGovernoBancos, valorLucroGrafico],
+                        backgroundColor: [
+                            '#ef4444', // Red-500
+                            '#f59e0b', // Yellow-500
+                            '#6b7280', // Gray-500
+                            lucro > 0 ? '#10b981' : '#ef4444' // Green-500 ou Red
+                        ],
+                        borderWidth: 2,
+                        borderColor: '#ffffff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '60%',
+                    plugins: {
+                        legend: { position: 'bottom', labels: { font: { family: 'Inter', size: 11 } } },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let value = context.raw;
+                                    return ' ' + new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function restaurarValores() {
+            document.getElementById('val_qtdVendas').value = 3500;
+            document.getElementById('val_descontos').value = 1000;
+            document.getElementById('val_devolucoes').value = 500;
+            document.getElementById('val_impostosVenda').value = 2500;
+            document.getElementById('val_embalagens').value = 2000;
+            document.getElementById('val_pessoal').value = 10000;
+            document.getElementById('val_ocupacao').value = 6000;
+            document.getElementById('val_admMarketing').value = 3000;
+            document.getElementById('val_depreciacao').value = 1000;
+            document.getElementById('val_taxasCartao').value = 1000;
+            document.getElementById('val_juros').value = 500;
+            document.getElementById('val_impostosLucro').value = 500;
+            
+            document.getElementById('ft_cafe_preco').value = 40;
+            document.getElementById('ft_cafe_peso').value = 250;
+            document.getElementById('ft_cafe_uso').value = 4;
+            document.getElementById('ft_filtro_preco').value = 30;
+            document.getElementById('ft_filtro_qtd').value = 100;
+            document.getElementById('ft_filtro_uso').value = 1;
+            document.getElementById('ft_agua_custo').value = 0.05;
+            document.getElementById('ft_preco_venda').value = 14.00;
+
+            calcularValores();
+        }
+
+        window.onload = () => {
+            calcularValores();
+        };
+    </script>
+</body>
+</html>
