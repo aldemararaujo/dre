@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestão Financeira e Precificação de Apps</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js para o Gráfico Dinâmico -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc; /* Tom mais frio, clean e tech (slate-50) */
+            color: #0f172a;
+        }
+        
+        .currency-input-wrapper { position: relative; }
+        .currency-input-wrapper::before {
+            content: 'R$';
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #64748b;
+            font-weight: 500;
+            pointer-events: none;
+        }
+        .currency-input { padding-left: 40px !important; }
+        
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { 
+            -webkit-appearance: none; margin: 0; 
+        }
+        input[type=number] { -moz-appearance: textfield; }
+
+        /* Regras exclusivas para quando for Imprimir / Salvar em PDF */
+        @media print {
+            body { background-color: #fff; color: #000; }
+            .no-print { display: none !important; }
+            .shadow-xl, .shadow-lg, .shadow-sm { box-shadow: none !important; }
+            .print-border { border: 1px solid #ccc !important; }
+            input { border: none !important; background: transparent !important; font-weight: bold; padding: 0 !important; }
+            .currency-input-wrapper::before { content: ''; } /* Remove R$ placeholder extra na impressão */
+            .break-avoid { break-inside: avoid; }
+        }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-8">
+
+    <div class="max-w-5xl mx-auto space-y-8">
+        
+        <!-- Cabeçalho e Controles -->
+        <header class="text-center mb-8 flex flex-col md:flex-row justify-between items-center gap-4">
+            <h1 class="text-3xl md:text-4xl font-black text-slate-900 tracking-tight">Gestão Financeira</h1>
+            
+            <div class="flex gap-2 no-print">
+                <!-- Botão Imprimir PDF -->
+                <button onclick="window.print()" class="flex items-center gap-2 px-4 py-2 bg-slate-800 text-slate-50 rounded-lg hover:bg-slate-700 transition-colors font-semibold shadow">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg>
+                    Salvar Relatório
+                </button>
+
+                <!-- Botão Restaurar -->
+                <button onclick="restaurarValores()" class="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition-colors font-semibold shadow">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                    Restaurar Padrão
+                </button>
+            </div>
+        </header>
+
+        <!-- Seção 1: DRE Dinâmica -->
+        <section class="bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-200 print-border break-avoid">
+            <div class="bg-slate-800 text-slate-50 p-5 flex justify-between items-center">
+                <div>
+                    <h2 class="text-xl md:text-2xl font-bold flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+                        Demonstração do Resultado do Exercício (DRE)
+                    </h2>
+                    <p class="text-slate-300 mt-1 text-sm no-print">Integrada com a Unit Economics. Simule mensalidades e base de usuários!</p>
+                </div>
+            </div>
+
+            <div class="p-0 md:p-4">
+                
+                <!-- Cabeçalho das Colunas -->
+                <div class="hidden md:flex flex-row items-center gap-4 px-6 py-3 bg-slate-50 border-b border-slate-200 text-xs uppercase tracking-wider font-bold text-slate-500 rounded-t-lg">
+                    <div class="w-24 text-right">Análise Vert.</div>
+                    <div class="flex-1">Categoria e Descrição</div>
+                    <div class="w-48 text-left pl-2">Valor (R$)</div>
+                </div>
+
+                <!-- Bloco 1: Força Comercial -->
+                <div class="border-b-2 border-slate-100">
+                    <div class="bg-indigo-100 px-6 py-2 text-sm font-black text-indigo-900 border-b border-indigo-200 uppercase tracking-wide">1. Receita e Comercial</div>
+                    
+                    <div class="flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-4 p-4 md:px-6 border-b border-slate-100 bg-indigo-50/30">
+                        <div class="w-full md:w-24 shrink-0 text-left md:text-right font-mono font-bold text-lg text-slate-500" id="perc_receitaBruta">100,0%</div>
+                        <div class="flex-1 flex items-center gap-1.5 relative group cursor-help min-w-0">
+                            <label class="font-bold text-[14px] sm:text-sm md:text-base whitespace-nowrap tracking-tight text-indigo-900">Receita Bruta de Assinaturas</label>
+                            <span class="text-slate-400 hover:text-indigo-600 shrink-0 transition-colors no-print"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></span>
+                            <div class="absolute left-0 top-full mt-2 hidden group-hover:block w-72 md:w-80 p-4 bg-slate-800 text-white text-xs rounded-lg shadow-xl z-50 whitespace-normal border border-slate-600">
+                                <div class="mb-1.5"><strong class="text-indigo-400">Categoria:</strong> Faturamento Bruto (MRR).</div>
+                                <div class="mb-1.5"><strong class="text-indigo-400">Sinônimos:</strong> Vendas Totais, Gross Revenue Mensal.</div>
+                                <div class="leading-relaxed"><strong class="text-indigo-400">Interpretação:</strong> O volume financeiro total gerado pelas assinaturas, calculado multiplicando o preço do plano pela quantidade de usuários pagantes ativos.</div>
+                            </div>
+                        </div>
+                        <div class="w-full md:w-48 shrink-0 currency-input-wrapper">
+                            <input type="number" id="val_receitaBruta" class="currency-input w-full p-2 border border-indigo-300 bg-indigo-100/60 rounded font-black text-indigo-900 cursor-not-allowed" readonly>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-4 py-3 pr-4 md:pr-6 pl-8 md:pl-14 bg-sky-50/50 border-b border-slate-100">
+                        <div class="w-full md:w-24 shrink-0 text-left md:text-right font-mono font-bold text-sky-600">-</div>
+                        <div class="flex-1 flex items-center gap-1.5 relative group cursor-help text-sky-800 min-w-0">
+                            <label class="font-bold text-[13px] sm:text-sm md:text-base whitespace-nowrap tracking-tight truncate"><span class="text-sky-400/70 font-normal mr-1 select-none">↳</span>(Vezes) Usuários Pagantes Ativos</label>
+                            <span class="text-slate-400 hover:text-sky-600 shrink-0 transition-colors no-print"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></span>
+                            <div class="absolute left-0 top-full mt-2 hidden group-hover:block w-72 md:w-80 p-4 bg-slate-800 text-white text-xs rounded-lg shadow-xl z-50 whitespace-normal border border-slate-600">
+                                <div class="mb-1.5"><strong class="text-sky-300">Categoria:</strong> Base de Clientes (Volume).</div>
+                                <div class="mb-1.5"><strong class="text-sky-300">Sinônimos:</strong> Active Paying Users, Assinantes.</div>
+                                <div class="leading-relaxed"><strong class="text-sky-300">Interpretação:</strong> Define a quantidade total de clientes pagando o plano base neste mês. Atualiza a Receita Bruta e o Custo de Servidores instantaneamente.</div>
+                            </div>
+                        </div>
+                        <div class="w-full md:w-48 shrink-0 relative">
+                            <input type="number" id="val_qtdVendas" class="w-full p-2 border border-sky-300 bg-white rounded focus:ring-2 focus:ring-sky-500 font-black text-sky-900 pl-4" value="1500" oninput="calcularValores()">
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-4 py-2 pr-4 md:pr-6 pl-8 md:pl-14 bg-slate-50/40 border-b border-slate-100">
+                        <div class="w-full md:w-24 shrink-0 text-left md:text-right font-mono font-bold text-rose-600" id="perc_descontos">0,0%</div>
+                        <div class="flex-1 flex items-center gap-1.5 relative group cursor-help text-rose-700 min-w-0">
+                            <label class="font-medium text-[13px] sm:text-sm md:text-base whitespace-nowrap tracking-tight truncate"><span class="text-slate-400/70 font-normal mr-1 select-none">↳</span>(Menos) Cupons e Descontos Promocionais</label>
+                            <span class="text-slate-400 hover:text-rose-500 shrink-0 transition-colors no-print"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></span>
+                            <div class="absolute left-0 top-full mt-2 hidden group-hover:block w-72 md:w-80 p-4 bg-slate-800 text-white text-xs rounded-lg shadow-xl z-50 whitespace-normal border border-slate-600">
+                                <div class="mb-1.5"><strong class="text-rose-300">Categoria:</strong> Dedução da Receita.</div>
+                                <div class="mb-1.5"><strong class="text-rose-300">Sinônimos:</strong> Promocodes, Abatimentos Incondicionais.</div>
+                                <div class="leading-relaxed"><strong class="text-rose-300">Interpretação:</strong> Valores concedidos em campanhas de marketing para atrair novos usuários, que reduzem diretamente o faturamento.</div>
+                            </div>
+                        </div>
+                        <div class="w-full md:w-48 shrink-0 currency-input-wrapper">
+                            <input type="number" id="val_descontos" class="currency-input w-full p-2 border border-rose-200 bg-white rounded font-semibold text-rose-800" value="1500" oninput="calcularValores()">
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-4 py-2 pr-4 md:pr-6 pl-8 md:pl-14 bg-slate-50/40 border-b border-slate-100">
+                        <div class="w-full md:w-24 shrink-0 text-left md:text-right font-mono font-bold text-rose-600" id="perc_devolucoes">0,0%</div>
+                        <div class="flex-1 flex items-center gap-1.5 relative group cursor-help text-rose-700 min-w-0">
+                            <label class="font-medium text-[13px] sm:text-sm md:text-base whitespace-nowrap tracking-tight truncate"><span class="text-slate-400/70 font-normal mr-1 select-none">↳</span>(Menos) Reembolsos e Chargebacks</label>
+                            <span class="text-slate-400 hover:text-rose-500 shrink-0 transition-colors no-print"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></span>
+                            <div class="absolute left-0 top-full mt-2 hidden group-hover:block w-72 md:w-80 p-4 bg-slate-800 text-white text-xs rounded-lg shadow-xl z-50 whitespace-normal border border-slate-600">
+                                <div class="mb-1.5"><strong class="text-rose-300">Categoria:</strong> Dedução da Receita.</div>
+                                <div class="mb-1.5"><strong class="text-rose-300">Sinônimos:</strong> Refunds, Fraudes de Cartão.</div>
+                                <div class="leading-relaxed"><strong class="text-rose-300">Interpretação:</strong> Indica o nível de cancelamentos exigidos por lei ou contestações de compras fraudulentas, devolvendo o dinheiro ao usuário.</div>
+                            </div>
+                        </div>
+                        <div class="w-full md:w-48 shrink-0 currency-input-wrapper">
+                            <input type="number" id="val_devolucoes" class="currency-input w-full p-2 border border-rose-200 bg-white rounded font-semibold text-rose-800" value="500" oninput="calcularValores()">
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-4 py-2 pr-4 md:pr-6 pl-8 md:pl-14 bg-slate-50/40">
+                        <div class="w-full md:w-24 shrink-0 text-left md:text-right font-mono font-bold text-rose-600" id="perc_impostosVenda">0,0%</div>
+                        <div class="flex-1 flex items-center gap-1.5 relative group cursor-help text-rose-700 min-w-0">
+                            <label class="font-medium text-[13px] sm:text-sm md:text-base whitespace-nowrap tracking-tight truncate"><span class="text-slate-400/70 font-normal mr-1 select-none">↳</span>(Menos) Impostos sobre Serviço</label>
+                            <span class="text-slate-400 hover:text-rose-500 shrink-0 transition-colors no-print"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></span>
+                            <div class="absolute left-0 top-full mt-2 hidden group-hover:block w-72 md:w-80 p-4 bg-slate-800 text-white text-xs rounded-lg shadow-xl z-50 whitespace-normal border border-slate-600">
+                                <div class="mb-1.5"><strong class="text-rose-300">Categoria:</strong> Obrigação Fiscal Direta.</div>
+                                <div class="mb-1.5"><strong class="text-rose-300">Sinônimos:</strong> ISS, Simples Nacional, PIS, COFINS.</div>
+                                <div class="leading-relaxed"><strong class="text-rose-300">Interpretação:</strong> Faturamento tributado pelo governo na emissão das notas fiscais dos assinantes.</div>
+                            </div>
+                        </div>
+                        <div class="w-full md:w-48 shrink-0 currency-input-wrapper">
+                            <input type="number" id="val_impostosVenda" class="currency-input w-full p-2 border border-rose-200 bg-white rounded font-semibold text-rose-800" value="2000" oninput="calcularValores()">
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-4 p-4 md:px-6 bg-indigo-100/50 border-t border-indigo-200">
+                        <div class="w-full md:w-24 shrink-0 text-left md:text-right font-mono font-black text-indigo-900" id="perc_receitaLiquida">0,0%</div>
+                        <div class="flex-1 flex items-center gap-1.5 relative group cursor-help min-w-0">
+                            <label class="font-bold text-[14px] sm:text-lg text-indigo-900 whitespace-nowrap tracking-tight truncate">= Receita Líquida de Vendas</label>
+                            <span class="text-slate-400 hover:text-indigo-700 shrink-0 transition-colors no-print"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></span>
+                            <div class="absolute left-0 top-full mt-2 hidden group-hover:block w-72 md:w-80 p-4 bg-slate-800 text-white text-xs rounded-lg shadow-xl z-50 whitespace-normal border border-slate-600">
+                                <div class="mb-1.5"><strong class="text-indigo-400">Categoria:</strong> Faturamento Real (Net Revenue).</div>
+                                <div class="mb-1.5"><strong class="text-indigo-400">Sinônimos:</strong> Receita Operacional Líquida.</div>
+                                <div class="leading-relaxed"><strong class="text-indigo-400">Interpretação:</strong> O ponto de partida real da empresa. É o dinheiro das assinaturas que fica efetivamente no caixa após os descontos e impostos.</div>
+                            </div>
+                        </div>
+                        <div class="w-full md:w-48 shrink-0 text-left md:text-right text-xl font-bold text-indigo-900 pr-3" id="res_receitaLiquida">R$ 0,00</div>
+                    </div>
+                </div>
+
+                <!-- Bloco 2: Produto / CSP -->
+                <div class="border-b-2 border-slate-100 break-avoid">
+                    <div class="bg-indigo-200 px-6 py-2 text-sm font-black text-indigo-900 border-b border-indigo-300 uppercase tracking-wide">2. Custo do Serviço Prestado (Infra)</div>
+                    
+                    <div class="flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-4 py-2 pr-4 md:pr-6 pl-8 md:pl-14 bg-rose-50/20 border-b border-slate-100">
+                        <div class="w-full md:w-24 shrink-0 text-left md:text-right font-mono font-bold text-rose-600" id="perc_insumos">0,0%</div>
+                        <div class="flex-1 flex items-center gap-1.5 relative group cursor-help text-rose-800 min-w-0">
+                            <label class="font-bold text-[13px] sm:text-sm md:text-base whitespace-nowrap tracking-tight truncate"><span class="text-rose-400/70 font-normal mr-1 select-none">↳</span>(Menos) Servidores e APIs (Por Usuário)</label>
+                            <span class="text-slate-400 hover:text-rose-600 shrink-0 transition-colors no-print"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></span>
+                            <div class="absolute left-0 top-full mt-2 hidden group-hover:block w-72 md:w-80 p-4 bg-slate-800 text-white text-xs rounded-lg shadow-xl z-50 whitespace-normal border border-slate-600">
+                                <div class="mb-1.5"><strong class="text-rose-300">Categoria:</strong> Custo do Serviço Prestado (CSP).</div>
+                                <div class="mb-1.5"><strong class="text-rose-300">Sinônimos:</strong> Infraestrutura Cloud, Cost of Goods Sold (COGS).</div>
+                                <div class="leading-relaxed"><strong class="text-rose-300">Interpretação:</strong> O custo essencial para o app rodar. O cálculo é travado pois reflete o Custo de Hospedagem e APIs na Ficha de Unit Economics multiplicado pela base de usuários.</div>
+                            </div>
+                        </div>
+                        <div class="w-full md:w-48 shrink-0 currency-input-wrapper">
+                            <input type="number" id="val_insumos" class="currency-input w-full p-2 border border-rose-300 bg-rose-100/60 rounded font-bold text-rose-900 cursor-not-allowed" readonly>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-4 py-2 pr-4 md:pr-6 pl-8 md:pl-14 bg-slate-50/40">
+                        <div class="w-full md:w-24 shrink-0 text-left md:text-right font-mono font-bold text-rose-600" id="perc_embalagens">0,0%</div>
+                        <div class="flex-1 flex items-center gap-1.5 relative group cursor-help text-rose-700 min-w-0">
+                            <label class="font-medium text-[13px] sm:text-sm md:text-base whitespace-nowrap tracking-tight truncate"><span class="text-slate-400/70 font-normal mr-1 select-none">↳</span>(Menos) Licenças de Software Extras</label>
+                            <span class="text-slate-400 hover:text-rose-500 shrink-0 transition-colors no-print"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></span>
+                            <div class="absolute left-0 top-full mt-2 hidden group-hover:block w-72 md:w-80 p-4 bg-slate-800 text-white text-xs rounded-lg shadow-xl z-50 whitespace-normal border border-slate-600">
+                                <div class="mb-1.5"><strong class="text-rose-300">Categoria:</strong> Custos Diretos.</div>
+                                <div class="mb-1.5"><strong class="text-rose-300">Sinônimos:</strong> Ferramentas SaaS (GitHub, Vercel, Figma).</div>
+                                <div class="leading-relaxed"><strong class="text-rose-300">Interpretação:</strong> O gasto mensal com softwares terceiros essenciais para manter o produto rodando e sendo atualizado.</div>
+                            </div>
+                        </div>
+                        <div class="w-full md:w-48 shrink-0 currency-input-wrapper">
+                            <input type="number" id="val_embalagens" class="currency-input w-full p-2 border border-rose-200 bg-white rounded font-semibold text-rose-800" value="500" oninput="calcularValores()">
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-4 p-4 md:px-6 bg-teal-50 border-t border-teal-200">
+                        <div class="w-full md:w-24 shrink-0 text-left md:text-right font-mono font-black text-teal-700" id="perc_lucroBruto">0,0%</div>
+                        <div class="flex-1 flex items-center gap-1.5 relative group cursor-help min-w-0">
+                            <label class="font-bold text-[14px] sm:text-lg text-teal-800 whitespace-nowrap tracking-tight truncate">= Lucro Bruto (Gross Profit)</label>
+                            <span class="text-slate-400 hover:text-teal-700 shrink-0 transition-colors no-print"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></span>
+                            <div class="absolute left-0 top-full mt-2 hidden group-hover:block w-72 md:w-80 p-4 bg-slate-800 text-white text-xs rounded-lg shadow-xl z-50 whitespace-normal border border-slate-600">
+                                <div class="mb-1.5"><strong class="text-teal-400">Categoria:</strong> Margem de Contribuição.</div>
+                                <div class="mb-1.5"><strong class="text-teal-400">Sinônimos:</strong> Resultado Bruto.</div>
+                                <div class="leading-relaxed"><strong class="text-teal-400">Interpretação:</strong> Essencial em tecnologia. Mostra a viabilidade de escala. Valores altos aqui significam que o app pode crescer milhares de usuários sem explodir os custos de servidor.</div>
+                            </div>
+                        </div>
+                        <div class="w-full md:w-48 shrink-0 text-left md:text-right text-xl font-bold text-teal-700 pr-3" id="res_lucroBruto">R$ 0,00</div>
+                    </div>
+                </div>
+
+                <!-- Bloco 3: Gestão e Operação -->
+                <div class="border-b-2 border-slate-100 break-avoid">
+                    <div class="bg-indigo-200 px-6 py-2 text-sm font-black text-indigo-900 border-b border-indigo-300 uppercase tracking-wide">3. Gastos da Gestão e Operação (Opex)</div>
+                    
+                    <div class="flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-4 py-2 pr-4 md:pr-6 pl-8 md:pl-14 bg-slate-50/40 border-b border-slate-100">
+                        <div class="w-full md:w-24 shrink-0 text-left md:text-right font-mono font-bold text-rose-600" id="perc_pessoal">0,0%</div>
+                        <div class="flex-1 flex items-center gap-1.5 relative group cursor-help text-rose-700 min-w-0">
+                            <label class="font-medium text-[13px] sm:text-sm md:text-base whitespace-nowrap tracking-tight truncate"><span class="text-slate-400/70 font-normal mr-1 select-none">↳</span>(Menos) Equipe (Devs, Suporte, Sócios)</label>
+                            <span class="text-slate-400 hover:text-rose-500 shrink-0 transition-colors no-print"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></span>
+                            <div class="absolute left-0 top-full mt-2 hidden group-hover:block w-72 md:w-80 p-4 bg-slate-800 text-white text-xs rounded-lg shadow-xl z-50 whitespace-normal border border-slate-600">
+                                <div class="mb-1.5"><strong class="text-rose-300">Categoria:</strong> Despesa Operacional Fixa.</div>
+                                <div class="mb-1.5"><strong class="text-rose-300">Sinônimos:</strong> Payroll, Folha de Pagamento.</div>
+                                <div class="leading-relaxed"><strong class="text-rose-300">Interpretação:</strong> O principal custo de uma empresa de tecnologia. Salários de engenheiros, atendimento ao cliente e o pró-labore dos fundadores.</div>
+                            </div>
+                        </div>
+                        <div class="w-full md:w-48 shrink-0 currency-input-wrapper">
+                            <input type="number" id="val_pessoal" class="currency-input w-full p-2 border border-rose-200 bg-white rounded font-semibold text-rose-800" value="15000" oninput="calcularValores()">
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-4 py-2 pr-4 md:pr-6 pl-8 md:pl-14 bg-slate-50/40 border-b border-slate-100">
+                        <div class="w-full md:w-24 shrink-0 text-left md:text-right font-mono font-bold text-rose-600" id="perc_ocupacao">0,0%</div>
+                        <div class="flex-1 flex items-center gap-1.5 relative group cursor-help text-rose-700 min-w-0">
+                            <label class="font-medium text-[13px] sm:text-sm md:text-base whitespace-nowrap tracking-tight truncate"><span class="text-slate-400/70 font-normal mr-1 select-none">↳</span>(Menos) Ocupação (Coworking, Internet)</label>
+                            <span class="text-slate-400 hover:text-rose-500 shrink-0 transition-colors no-print"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></span>
+                            <div class="absolute left-0 top-full mt-2 hidden group-hover:block w-72 md:w-80 p-4 bg-slate-800 text-white text-xs rounded-lg shadow-xl z-50 whitespace-normal border border-slate-600">
+                                <div class="mb-1.5"><strong class="text-rose-300">Categoria:</strong> Despesa Fixa.</div>
+                                <div class="mb-1.5"><strong class="text-rose-300">Sinônimos:</strong> Facilities, Infraestrutura Física.</div>
+                                <div class="leading-relaxed"><strong class="text-rose-300">Interpretação:</strong> O custo físico para a equipe existir. Mesas de coworking, planos de internet de alta velocidade e energia.</div>
+                            </div>
+                        </div>
+                        <div class="w-full md:w-48 shrink-0 currency-input-wrapper">
+                            <input type="number" id="val_ocupacao" class="currency-input w-full p-2 border border-rose-200 bg-white rounded font-semibold text-rose-800" value="2000" oninput="calcularValores()">
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-4 py-2 pr-4 md:pr-6 pl-8 md:pl-14 bg-slate-50/40 border-b border-slate-100">
+                        <div class="w-full md:w-24 shrink-0 text-left md:text-right font-mono font-bold text-rose-600" id="perc_admMarketing">0,0%</div>
+                        <div class="flex-1 flex items-center gap-1.5 relative group cursor-help text-rose-700 min-w-0">
+                            <label class="font-medium text-[13px] sm:text-sm md:text-base whitespace-nowrap tracking-tight truncate"><span class="text-slate-400/70 font-normal mr-1 select-none">↳</span>(Menos) Marketing Digital e CAC</label>
+                            <span class="text-slate-400 hover:text-rose-500 shrink-0 transition-colors no-print"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></span>
+                            <div class="absolute left-0 top-full mt-2 hidden group-hover:block w-72 md:w-80 p-4 bg-slate-800 text-white text-xs rounded-lg shadow-xl z-50 whitespace-normal border border-slate-600">
+                                <div class="mb-1.5"><strong class="text-rose-300">Categoria:</strong> Despesa Operacional Variável/Fixa.</div>
+                                <div class="mb-1.5"><strong class="text-rose-300">Sinônimos:</strong> Google Ads, Meta Ads, Customer Acquisition Cost.</div>
+                                <div class="leading-relaxed"><strong class="text-rose-300">Interpretação:</strong> O combustível de crescimento do app. Todo gasto administrativo e focado em atrair a próxima leva de usuários assinantes.</div>
+                            </div>
+                        </div>
+                        <div class="w-full md:w-48 shrink-0 currency-input-wrapper">
+                            <input type="number" id="val_admMarketing" class="currency-input w-full p-2 border border-rose-200 bg-white rounded font-semibold text-rose-800" value="8000" oninput="calcularValores()">
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-4 py-2 pr-4 md:pr-6 pl-8 md:pl-14 bg-slate-50/40">
+                        <div class="w-full md:w-24 shrink-0 text-left md:text-right font-mono font-bold text-rose-600" id="perc_depreciacao">0,0%</div>
+                        <div class="flex-1 flex items-center gap-1.5 relative group cursor-help text-rose-700 min-w-0">
+                            <label class="font-medium text-[13px] sm:text-sm md:text-base whitespace-nowrap tracking-tight truncate"><span class="text-slate-400/70 font-normal mr-1 select-none">↳</span>(Menos) Amortização de Software e Macs</label>
+                            <span class="text-slate-400 hover:text-rose-500 shrink-0 transition-colors no-print"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></span>
+                            <div class="absolute left-0 top-full mt-2 hidden group-hover:block w-72 md:w-80 p-4 bg-slate-800 text-white text-xs rounded-lg shadow-xl z-50 whitespace-normal border border-slate-600">
+                                <div class="mb-1.5"><strong class="text-rose-300">Categoria:</strong> Custo Não Desembolsável.</div>
+                                <div class="mb-1.5"><strong class="text-rose-300">Sinônimos:</strong> Depreciação de Equipamentos, Amortização.</div>
+                                <div class="leading-relaxed"><strong class="text-rose-300">Interpretação:</strong> Reconhecimento de que os computadores e licenças compradas perdem valor no tempo. Ajuda na reserva para renovação de infra.</div>
+                            </div>
+                        </div>
+                        <div class="w-full md:w-48 shrink-0 currency-input-wrapper">
+                            <input type="number" id="val_depreciacao" class="currency-input w-full p-2 border border-rose-200 bg-white rounded font-semibold text-rose-800" value="800" oninput="calcularValores()">
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-4 p-4 md:px-6 bg-sky-50 border-t border-sky-200">
+                        <div class="w-full md:w-24 shrink-0 text-left md:text-right font-mono font-black text-sky-800" id="perc_ebit">0,0%</div>
+                        <div class="flex-1 flex items-center gap-1.5 relative group cursor-help min-w-0">
+                            <label class="font-bold text-[14px] sm:text-lg text-sky-900 whitespace-nowrap tracking-tight truncate">= Lucro Operacional (EBIT)</label>
+                            <span class="text-slate-400 hover:text-sky-700 shrink-0 transition-colors no-print"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></span>
+                            <div class="absolute left-0 top-full mt-2 hidden group-hover:block w-72 md:w-80 p-4 bg-slate-800 text-white text-xs rounded-lg shadow-xl z-50 whitespace-normal border border-slate-600">
+                                <div class="mb-1.5"><strong class="text-sky-300">Categoria:</strong> Resultado da Gestão.</div>
+                                <div class="mb-1.5"><strong class="text-sky-300">Sinônimos:</strong> LAJIR, Operating Profit.</div>
+                                <div class="leading-relaxed"><strong class="text-sky-300">Interpretação:</strong> O atestado de saúde da sua startup. Mostra se o produto, a nuvem e a equipe juntos ganham dinheiro antes das taxas dos bilionários das App Stores.</div>
+                            </div>
+                        </div>
+                        <div class="w-full md:w-48 shrink-0 text-left md:text-right text-xl font-bold text-sky-900 pr-3" id="res_ebit">R$ 0,00</div>
+                    </div>
+
+                    <!-- Indicador de Caixa: EBITDA -->
+                    <div class="flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-4 px-4 md:px-6 py-2 bg-slate-100 border-t border-slate-200 opacity-90">
+                        <div class="w-full md:w-24 shrink-0 text-left md:text-right font-mono font-bold text-sm text-slate-600" id="perc_ebitda">0,0%</div>
+                        <div class="flex-1 flex items-center gap-1.5 relative group cursor-help min-w-0">
+                            <label class="font-semibold text-[13px] sm:text-sm text-slate-700 whitespace-nowrap tracking-tight truncate">Indicador de Caixa Livre: EBITDA</label>
+                            <span class="text-slate-400 hover:text-slate-600 shrink-0 transition-colors no-print"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></span>
+                            <div class="absolute left-0 top-full mt-2 hidden group-hover:block w-72 md:w-80 p-4 bg-slate-800 text-white text-xs rounded-lg shadow-xl z-50 whitespace-normal border border-slate-600">
+                                <div class="mb-1.5"><strong class="text-slate-300">Categoria:</strong> Potencial de Caixa.</div>
+                                <div class="mb-1.5"><strong class="text-slate-300">Sinônimos:</strong> LAJIDA.</div>
+                                <div class="leading-relaxed"><strong class="text-slate-300">Interpretação:</strong> É o lucro operacional devolvendo a depreciação virtual. Métrica muito avaliada por investidores e Venture Capitalists.</div>
+                            </div>
+                        </div>
+                        <div class="w-full md:w-48 shrink-0 text-left md:text-right text-md font-bold text-slate-700 pr-3" id="res_ebitda">R$ 0,00</div>
+                    </div>
+                </div>
+
+                <!-- Bloco 4: Financeiro e Final -->
+                <div class="break-avoid">
+                    <div class="bg-indigo-200 px-6 py-2 text-sm font-black text-indigo-900 border-b border-indigo-300 uppercase tracking-wide">4. Lojas, Financeiro e Governo</div>
+                    
+                    <div class="flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-4 py-2 pr-4 md:pr-6 pl-8 md:pl-14 bg-slate-50/40 border-b border-slate-100">
+                        <div class="w-full md:w-24 shrink-0 text-left md:text-right font-mono font-bold text-rose-600" id="perc_taxasCartao">0,0%</div>
+                        <div class="flex-1 flex items-center gap-1.5 relative group cursor-help text-rose-700 min-w-0">
+                            <label class="font-medium text-[13px] sm:text-sm md:text-base whitespace-nowrap tracking-tight truncate"><span class="text-slate-400/70 font-normal mr-1 select-none">↳</span>(Menos) Taxas da Apple, Google e Stripe</label>
+                            <span class="text-slate-400 hover:text-rose-500 shrink-0 transition-colors no-print"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></span>
+                            <div class="absolute left-0 top-full mt-2 hidden group-hover:block w-72 md:w-80 p-4 bg-slate-800 text-white text-xs rounded-lg shadow-xl z-50 whitespace-normal border border-slate-600">
+                                <div class="mb-1.5"><strong class="text-rose-300">Categoria:</strong> Despesa Financeira Intermediária.</div>
+                                <div class="mb-1.5"><strong class="text-rose-300">Sinônimos:</strong> Store Fee (15%-30%), Gateway de Pagamento.</div>
+                                <div class="leading-relaxed"><strong class="text-rose-300">Interpretação:</strong> O gigante pedágio para existir nas lojas mobile ou processar o cartão de crédito do assinante. Um dos maiores pesos dos apps modernos.</div>
+                            </div>
+                        </div>
+                        <div class="w-full md:w-48 shrink-0 currency-input-wrapper">
+                            <input type="number" id="val_taxasCartao" class="currency-input w-full p-2 border border-rose-200 bg-white rounded font-semibold text-rose-800" value="6000" oninput="calcularValores()">
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-4 py-2 pr-4 md:pr-6 pl-8 md:pl-14 bg-slate-50/40 border-b border-slate-100">
+                        <div class="w-full md:w-24 shrink-0 text-left md:text-right font-mono font-bold text-rose-600" id="perc_juros">0,0%</div>
+                        <div class="flex-1 flex items-center gap-1.5 relative group cursor-help text-rose-700 min-w-0">
+                            <label class="font-medium text-[13px] sm:text-sm md:text-base whitespace-nowrap tracking-tight truncate"><span class="text-slate-400/70 font-normal mr-1 select-none">↳</span>(Menos) Juros e Tarifas Bancárias</label>
+                            <span class="text-slate-400 hover:text-rose-500 shrink-0 transition-colors no-print"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></span>
+                            <div class="absolute left-0 top-full mt-2 hidden group-hover:block w-72 md:w-80 p-4 bg-slate-800 text-white text-xs rounded-lg shadow-xl z-50 whitespace-normal border border-slate-600">
+                                <div class="mb-1.5"><strong class="text-rose-300">Categoria:</strong> Despesa Financeira Fixa/Variável.</div>
+                                <div class="mb-1.5"><strong class="text-rose-300">Sinônimos:</strong> Custo de Capital.</div>
+                                <div class="leading-relaxed"><strong class="text-rose-300">Interpretação:</strong> Custos de empréstimos, antecipação de recebíveis ou tarifas de contas bancárias digitais corporativas.</div>
+                            </div>
+                        </div>
+                        <div class="w-full md:w-48 shrink-0 currency-input-wrapper">
+                            <input type="number" id="val_juros" class="currency-input w-full p-2 border border-rose-200 bg-white rounded font-semibold text-rose-800" value="200" oninput="calcularValores()">
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-4 py-2 pr-4 md:pr-6 pl-8 md:pl-14 bg-slate-50/40">
+                        <div class="w-full md:w-24 shrink-0 text-left md:text-right font-mono font-bold text-rose-600" id="perc_impostosLucro">0,0%</div>
+                        <div class="flex-1 flex items-center gap-1.5 relative group cursor-help text-rose-700 min-w-0">
+                            <label class="font-medium text-[13px] sm:text-sm md:text-base whitespace-nowrap tracking-tight truncate"><span class="text-slate-400/70 font-normal mr-1 select-none">↳</span>(Menos) Imposto sobre o Lucro Real/Presumido</label>
+                            <span class="text-slate-400 hover:text-rose-500 shrink-0 transition-colors no-print"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></span>
+                            <div class="absolute left-0 top-full mt-2 hidden group-hover:block w-72 md:w-80 p-4 bg-slate-800 text-white text-xs rounded-lg shadow-xl z-50 whitespace-normal border border-slate-600">
+                                <div class="mb-1.5"><strong class="text-rose-300">Categoria:</strong> Obrigação Fiscal de Fim de Linha.</div>
+                                <div class="mb-1.5"><strong class="text-rose-300">Sinônimos:</strong> IRPJ/CSLL.</div>
+                                <div class="leading-relaxed"><strong class="text-rose-300">Interpretação:</strong> O corte do Leão. Se a startup já der lucro contábil fora do Simples, haverá uma mordida tributária pesada antes da distribuição de dividendos.</div>
+                            </div>
+                        </div>
+                        <div class="w-full md:w-48 shrink-0 currency-input-wrapper">
+                            <input type="number" id="val_impostosLucro" class="currency-input w-full p-2 border border-rose-200 bg-white rounded font-semibold text-rose-800" value="0" oninput="calcularValores()">
+                        </div>
+                    </div>
+
+                    <!-- Linha Resultado Final e Alerta de Risco -->
+                    <div class="flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-4 p-5 bg-teal-100/60 border-t-4 border-teal-500 mt-2 rounded-b-lg">
+                        <div class="w-full md:w-24 shrink-0 text-left md:text-right font-mono font-black text-2xl text-teal-800" id="perc_lucroLiquido">0,0%</div>
+                        <div class="flex-1 min-w-0 flex flex-col justify-center">
+                            <div class="flex items-center gap-1.5 relative group cursor-help w-fit">
+                                <label class="font-black text-[20px] sm:text-2xl text-teal-900 whitespace-nowrap tracking-tight truncate">= Lucro Líquido</label>
+                                <span class="text-slate-400 hover:text-teal-800 shrink-0 transition-colors no-print"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></span>
+                                <div class="absolute left-0 bottom-full mb-2 hidden group-hover:block w-72 md:w-80 p-4 bg-slate-800 text-white text-xs rounded-lg shadow-xl z-50 whitespace-normal border border-slate-600">
+                                    <div class="mb-1.5"><strong class="text-teal-400">Categoria:</strong> Resultado Final.</div>
+                                    <div class="mb-1.5"><strong class="text-teal-400">Sinônimos:</strong> Net Income, Bottom Line.</div>
+                                    <div class="leading-relaxed"><strong class="text-teal-400">Interpretação:</strong> O dinheiro que a sua startup efetivamente guardou na conta bancária para reinvestir em tecnologia ou distribuir aos fundadores.</div>
+                                </div>
+                            </div>
+                            
+                            <div class="mt-2 flex flex-col items-start">
+                                <div class="text-[13px] font-bold text-slate-700" id="res_pontoEquilibrio_info">Ponto de Equilíbrio (Break-even): 0 usuários</div>
+                                <div id="alerta_risco_box" class="mt-1 px-3 py-2 border rounded-md text-xs font-bold transition-all">
+                                    Calculando risco...
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="w-full md:w-48 shrink-0 text-left md:text-right text-3xl md:text-4xl font-black text-teal-900 pr-3" id="res_lucroLiquido">R$ 0,00</div>
+                    </div>
+                </div>
+
+                <!-- Nova Seção de Gráfico Dinâmico -->
+                <div class="p-6 bg-white border-t border-slate-200 break-avoid">
+                    <h3 class="text-lg font-black text-indigo-900 mb-4 text-center">Raio-X do Modelo de Negócio (App)</h3>
+                    <div class="w-full max-w-sm mx-auto relative h-64">
+                        <canvas id="graficoRaioX"></canvas>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- Seção 2: Ficha Técnica (Unit Economics) -->
+        <section class="bg-white rounded-2xl shadow-lg overflow-hidden border border-slate-200 mt-10 print-border break-avoid">
+            <div class="bg-slate-800 text-slate-50 p-6">
+                <h2 class="text-2xl font-semibold flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                    Economia Unitária (Unit Economics) e Precificação
+                </h2>
+            </div>
+
+            <div class="p-5 md:p-8">
+                <p class="mb-4 text-slate-700 text-sm md:text-base">Nesta área avaliamos o custo de manter <strong>um único usuário pagante ativo</strong>. Se essa conta for viável em 1, será viável em 1 milhão. As escolhas abaixo multiplicam com a base e alimentam a DRE.</p>
+                
+                <div class="overflow-x-auto rounded-lg border border-slate-200">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-slate-100 text-slate-800">
+                                <th class="p-3 border-b border-slate-200 font-semibold">Infraestrutura</th>
+                                <th class="p-3 border-b border-slate-200 font-semibold">Custo do Pacote / Tier</th>
+                                <th class="p-3 border-b border-slate-200 font-semibold">Fração (1 Usuário)</th>
+                                <th class="p-3 border-b border-slate-200 font-semibold">Custo Unitário Mensal</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-sm">
+                            <tr class="hover:bg-slate-50">
+                                <td class="p-3 border-b border-slate-100 font-medium">Hospedagem / Servidor (AWS/GCP)</td>
+                                <td class="p-3 border-b border-slate-100">
+                                    <div class="flex items-center gap-1">
+                                        R$ <input type="number" id="ft_item1_preco" class="w-16 p-1 border border-slate-300 rounded text-sm focus:ring-indigo-500 focus:border-indigo-500" value="500" oninput="calcularValores()">
+                                        / <input type="number" id="ft_item1_qtd" class="w-16 p-1 border border-slate-300 rounded text-sm focus:ring-indigo-500 focus:border-indigo-500" value="1000" oninput="calcularValores()"> users
+                                    </div>
+                                </td>
+                                <td class="p-3 border-b border-slate-100">
+                                    <input type="number" id="ft_item1_uso" class="w-14 p-1 border border-slate-300 rounded text-sm focus:ring-indigo-500 focus:border-indigo-500 bg-slate-100 cursor-not-allowed" value="1" readonly title="Sempre 1 por unidade"> usuário
+                                </td>
+                                <td class="p-3 border-b border-slate-100 font-semibold text-slate-700" id="res_ft_item1_custo">R$ 0,50</td>
+                            </tr>
+                            <tr class="hover:bg-slate-50">
+                                <td class="p-3 border-b border-slate-100 font-medium">Banco de Dados Mensal</td>
+                                <td class="p-3 border-b border-slate-100">
+                                    <div class="flex items-center gap-1">
+                                        R$ <input type="number" id="ft_item2_preco" class="w-16 p-1 border border-slate-300 rounded text-sm focus:ring-indigo-500 focus:border-indigo-500" value="200" oninput="calcularValores()">
+                                        / <input type="number" id="ft_item2_qtd" class="w-16 p-1 border border-slate-300 rounded text-sm focus:ring-indigo-500 focus:border-indigo-500" value="1000" oninput="calcularValores()"> users
+                                    </div>
+                                </td>
+                                <td class="p-3 border-b border-slate-100">
+                                    <input type="number" id="ft_item2_uso" class="w-14 p-1 border border-slate-300 rounded text-sm focus:ring-indigo-500 focus:border-indigo-500 bg-slate-100 cursor-not-allowed" value="1" readonly title="Sempre 1 por unidade"> usuário
+                                </td>
+                                <td class="p-3 border-b border-slate-100 font-semibold text-slate-700" id="res_ft_item2_custo">R$ 0,20</td>
+                            </tr>
+                            <tr class="hover:bg-slate-50">
+                                <td class="p-3 border-b border-slate-100 font-medium">APIs Terceiros (OpenAI, Mapas)</td>
+                                <td class="p-3 border-b border-slate-100 text-slate-500">Estimativa Direta</td>
+                                <td class="p-3 border-b border-slate-100 text-slate-500">Custo Base Mensal</td>
+                                <td class="p-3 border-b border-slate-100 font-semibold">
+                                    R$ <input type="number" id="ft_item3_custo" class="w-16 p-1 border border-slate-300 rounded text-sm focus:ring-indigo-500 focus:border-indigo-500" value="0.30" step="0.01" oninput="calcularValores()">
+                                </td>
+                            </tr>
+                            <tr class="bg-rose-50/50">
+                                <td class="p-3 border-b border-slate-200 font-medium text-rose-600">
+                                    <div class="flex items-center gap-1.5 relative group cursor-help w-fit">
+                                        Inadimplência de Planos (5%)
+                                        <span class="text-slate-400 hover:text-rose-500 shrink-0 transition-colors no-print"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></span>
+                                        <div class="absolute left-0 bottom-full mb-2 hidden group-hover:block w-72 md:w-80 p-4 bg-slate-800 text-white text-xs rounded-lg shadow-xl z-50 whitespace-normal border border-slate-600 text-left font-normal">
+                                            <div class="mb-1.5"><strong class="text-rose-300">Categoria:</strong> Custo de Ineficiência Financeira.</div>
+                                            <div class="mb-1.5"><strong class="text-rose-300">Sinônimos:</strong> Default, Quebra de Cartão.</div>
+                                            <div class="leading-relaxed"><strong class="text-rose-300">Interpretação:</strong> Margem de segurança de cobranças no cartão que falham, mas cujo usuário gerou custo no seu servidor antes de ter a conta suspensa.</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="p-3 border-b border-slate-200"></td>
+                                <td class="p-3 border-b border-slate-200"></td>
+                                <td class="p-3 border-b border-slate-200 font-semibold text-rose-800" id="res_ft_perda">R$ 0,05</td>
+                            </tr>
+                        </tbody>
+                        <tfoot>
+                            <tr class="bg-slate-100">
+                                <td colspan="3" class="p-3 text-right font-bold text-slate-800">Custo Total de 1 Usuário / Mês (CSP Unitário):</td>
+                                <td class="p-3 font-bold text-rose-700 text-lg" id="res_ft_total">R$ 1,05</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+
+                <div class="mt-6 bg-indigo-50 p-5 rounded-xl border border-indigo-200">
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-center">
+                        <div class="bg-indigo-100 p-3 rounded-lg border border-indigo-300 h-full flex flex-col justify-center">
+                            <p class="text-xs text-slate-600 uppercase font-bold tracking-wider">Mensalidade do App</p>
+                            <div class="flex items-center gap-1 mt-1">
+                                <span class="text-2xl font-black text-indigo-800">R$</span>
+                                <input type="number" id="ft_preco_venda" class="w-full bg-white border-b-2 border-indigo-400 text-2xl font-black text-indigo-800 px-1 rounded-t" value="29.90" step="0.50" oninput="calcularValores()">
+                            </div>
+                        </div>
+                        
+                        <div class="bg-white p-3 rounded-lg border border-slate-200 shadow-sm flex flex-col justify-center h-full">
+                            <div class="flex items-center gap-1.5 relative group cursor-help w-fit">
+                                <p class="text-xs text-slate-500 uppercase font-bold tracking-wider">Peso do CSP %</p>
+                                <span class="text-slate-400 hover:text-rose-500 shrink-0 transition-colors no-print"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></span>
+                                <div class="absolute left-0 bottom-full mb-2 hidden group-hover:block w-72 md:w-80 p-4 bg-slate-800 text-white text-xs rounded-lg shadow-xl z-50 whitespace-normal border border-slate-600 text-left font-normal">
+                                    <div class="mb-1.5"><strong class="text-teal-300">Categoria:</strong> Indicador de Margem.</div>
+                                    <div class="mb-1.5"><strong class="text-teal-300">Sinônimos:</strong> COGS Ratio.</div>
+                                    <div class="leading-relaxed"><strong class="text-teal-300">Interpretação:</strong> O quanto a nuvem consome da mensalidade do app. Em SaaS de sucesso, isso deve ser baixíssimo, sobrando muito para crescer com marketing.</div>
+                                </div>
+                            </div>
+                            <p class="text-2xl font-black text-rose-600 mt-1" id="res_ft_cmv_percentual">3,5%</p>
+                            <p class="text-[10px] text-slate-400 font-mono mt-1.5 pt-1.5 border-t border-slate-100" id="calc_cmv_detalhe">(R$ 1,05 / R$ 29,90) × 100</p>
+                        </div>
+
+                        <div class="bg-white p-3 rounded-lg border border-slate-200 shadow-sm flex flex-col justify-center h-full">
+                            <div class="flex items-center gap-1.5 relative group cursor-help w-fit">
+                                <p class="text-xs text-slate-500 uppercase font-bold tracking-wider">Fator Multiplicador</p>
+                                <span class="text-slate-400 hover:text-sky-500 shrink-0 transition-colors no-print"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></span>
+                                <div class="absolute right-0 md:left-0 bottom-full mb-2 hidden group-hover:block w-72 md:w-80 p-4 bg-slate-800 text-white text-xs rounded-lg shadow-xl z-50 whitespace-normal border border-slate-600 text-left font-normal">
+                                    <div class="mb-1.5"><strong class="text-sky-300">Categoria:</strong> Multiplicador (Markup).</div>
+                                    <div class="leading-relaxed"><strong class="text-sky-300">Interpretação:</strong> Quantas vezes o custo de nuvem foi multiplicado para justificar o preço. Apps escalam porque este número é gigante.</div>
+                                </div>
+                            </div>
+                            <p class="text-2xl font-black text-sky-600 mt-1" id="res_ft_markup">28,48x</p>
+                            <p class="text-[10px] text-slate-400 font-mono mt-1.5 pt-1.5 border-t border-slate-100" id="calc_markup_detalhe">R$ 29,90 / R$ 1,05</p>
+                        </div>
+
+                        <div class="bg-white p-3 rounded-lg border border-slate-200 shadow-sm flex flex-col justify-center h-full">
+                            <div class="flex items-center gap-1.5 relative group cursor-help w-fit">
+                                <p class="text-xs text-slate-500 uppercase font-bold tracking-wider">Margem Unitária</p>
+                                <span class="text-slate-400 hover:text-teal-500 shrink-0 transition-colors no-print"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></span>
+                                <div class="absolute right-0 bottom-full mb-2 hidden group-hover:block w-72 md:w-80 p-4 bg-slate-800 text-white text-xs rounded-lg shadow-xl z-50 whitespace-normal border border-slate-600 text-left font-normal">
+                                    <div class="mb-1.5"><strong class="text-teal-400">Categoria:</strong> Lucro Bruto Unitário.</div>
+                                    <div class="mb-1.5"><strong class="text-teal-400">Sinônimos:</strong> Unit Gross Profit.</div>
+                                    <div class="leading-relaxed"><strong class="text-teal-400">Interpretação:</strong> O dinheiro puro que sobra mensalmente de cada usuário para custear os programadores, marketing e as taxas das App Stores.</div>
+                                </div>
+                            </div>
+                            <p class="text-2xl font-black text-teal-600 mt-1" id="res_ft_margem_reais">R$ 28,85</p>
+                            <p class="text-[10px] text-slate-400 font-mono mt-1.5 pt-1.5 border-t border-slate-100" id="calc_margem_detalhe">R$ 29,90 - R$ 1,05</p>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+    </div>
+
+    <script>
+        const formatarMoeda = (valor) => {
+            return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor);
+        };
+
+        // Variável global para manter a instância do gráfico e não duplicar
+        let graficoRaioXInstancia = null;
+
+        function calcularValores() {
+            // 1. CÁLCULO DA UNIT ECONOMICS (FICHA TÉCNICA)
+            const precoItem1 = parseFloat(document.getElementById('ft_item1_preco').value) || 0;
+            const qtdItem1 = parseFloat(document.getElementById('ft_item1_qtd').value) || 1;
+            const usoItem1 = parseFloat(document.getElementById('ft_item1_uso').value) || 0;
+            const custoServidor = (precoItem1 / qtdItem1) * usoItem1;
+            document.getElementById('res_ft_item1_custo').textContent = formatarMoeda(custoServidor);
+
+            const precoItem2 = parseFloat(document.getElementById('ft_item2_preco').value) || 0;
+            const qtdItem2 = parseFloat(document.getElementById('ft_item2_qtd').value) || 1;
+            const usoItem2 = parseFloat(document.getElementById('ft_item2_uso').value) || 0;
+            const custoDB = (precoItem2 / qtdItem2) * usoItem2;
+            document.getElementById('res_ft_item2_custo').textContent = formatarMoeda(custoDB);
+
+            const custoApi = parseFloat(document.getElementById('ft_item3_custo').value) || 0;
+
+            const subtotal = custoServidor + custoDB + custoApi;
+            const perda = subtotal * 0.05; // 5% Inadimplência/Falhas
+            const custoPorUsuario = subtotal + perda;
+
+            document.getElementById('res_ft_perda').textContent = formatarMoeda(perda);
+            document.getElementById('res_ft_total').textContent = formatarMoeda(custoPorUsuario);
+
+            const precoVenda = parseFloat(document.getElementById('ft_preco_venda').value) || 1;
+            const cspPercentual = precoVenda > 0 ? (custoPorUsuario / precoVenda) * 100 : 0;
+            const markup = custoPorUsuario > 0 ? (precoVenda / custoPorUsuario) : 0;
+            const margemReais = precoVenda - custoPorUsuario;
+
+            document.getElementById('res_ft_cmv_percentual').textContent = cspPercentual.toFixed(1).replace('.', ',') + '%';
+            document.getElementById('calc_cmv_detalhe').textContent = `(${formatarMoeda(custoPorUsuario)} / ${formatarMoeda(precoVenda)}) × 100`;
+
+            document.getElementById('res_ft_markup').textContent = markup.toFixed(2).replace('.', ',') + 'x';
+            document.getElementById('calc_markup_detalhe').textContent = `${formatarMoeda(precoVenda)} / ${formatarMoeda(custoPorUsuario)}`;
+
+            document.getElementById('res_ft_margem_reais').textContent = formatarMoeda(margemReais);
+            document.getElementById('calc_margem_detalhe').textContent = `${formatarMoeda(precoVenda)} - ${formatarMoeda(custoPorUsuario)}`;
+
+            // 2. INTEGRAÇÃO COM A DRE
+            const qtdVendas = parseFloat(document.getElementById('val_qtdVendas').value) || 0;
+            const receitaBruta = qtdVendas * precoVenda;
+            const custoInfraApp = qtdVendas * custoPorUsuario;
+
+            document.getElementById('val_receitaBruta').value = receitaBruta.toFixed(2);
+            document.getElementById('val_insumos').value = custoInfraApp.toFixed(2);
+
+            // 3. CÁLCULO DA DRE
+            const getValor = (id) => parseFloat(document.getElementById(id).value) || 0;
+            
+            const descontos = getValor('val_descontos');
+            const devolucoes = getValor('val_devolucoes');
+            const impostosVenda = getValor('val_impostosVenda');
+            const deducoes = descontos + devolucoes + impostosVenda;
+
+            const embalagens = getValor('val_embalagens'); // Ferramentas Extras
+            const cmv = custoInfraApp + embalagens;
+
+            const pessoal = getValor('val_pessoal');
+            const ocupacao = getValor('val_ocupacao');
+            const admMarketing = getValor('val_admMarketing');
+            const despOperacionais = pessoal + ocupacao + admMarketing;
+            
+            const depreciacao = getValor('val_depreciacao');
+            const taxasCartao = getValor('val_taxasCartao'); // Apple/Google
+            const juros = getValor('val_juros');
+            const despFinanceiras = taxasCartao + juros;
+            const impostosLucro = getValor('val_impostosLucro');
+
+            const calcPerc = (valor) => {
+                if (receitaBruta === 0) return '0,0%';
+                return ((Math.abs(valor) / receitaBruta) * 100).toFixed(1).replace('.', ',') + '%';
+            };
+
+            const receitaLiquida = receitaBruta - deducoes;
+            const lucroBruto = receitaLiquida - cmv;
+            const despesasTotalOperacao = despOperacionais + depreciacao;
+            const ebit = lucroBruto - despesasTotalOperacao;
+            const lucroLiquido = ebit - despFinanceiras - impostosLucro;
+
+            // Preenche textos da DRE
+            document.getElementById('res_receitaLiquida').textContent = formatarMoeda(receitaLiquida);
+            document.getElementById('res_lucroBruto').textContent = formatarMoeda(lucroBruto);
+            document.getElementById('res_ebit').textContent = formatarMoeda(ebit);
+            document.getElementById('res_lucroLiquido').textContent = formatarMoeda(lucroLiquido);
+
+            document.getElementById('perc_receitaBruta').textContent = calcPerc(receitaBruta);
+            document.getElementById('perc_descontos').textContent = calcPerc(descontos);
+            document.getElementById('perc_devolucoes').textContent = calcPerc(devolucoes);
+            document.getElementById('perc_impostosVenda').textContent = calcPerc(impostosVenda);
+            document.getElementById('perc_receitaLiquida').textContent = calcPerc(receitaLiquida);
+            document.getElementById('perc_insumos').textContent = calcPerc(custoInfraApp);
+            document.getElementById('perc_embalagens').textContent = calcPerc(embalagens);
+            document.getElementById('perc_lucroBruto').textContent = calcPerc(lucroBruto);
+            document.getElementById('perc_pessoal').textContent = calcPerc(pessoal);
+            document.getElementById('perc_ocupacao').textContent = calcPerc(ocupacao);
+            document.getElementById('perc_admMarketing').textContent = calcPerc(admMarketing);
+            document.getElementById('perc_depreciacao').textContent = calcPerc(depreciacao);
+            document.getElementById('perc_ebit').textContent = calcPerc(ebit);
+            document.getElementById('perc_taxasCartao').textContent = calcPerc(taxasCartao);
+            document.getElementById('perc_juros').textContent = calcPerc(juros);
+            document.getElementById('perc_impostosLucro').textContent = calcPerc(impostosLucro);
+            document.getElementById('perc_lucroLiquido').textContent = calcPerc(lucroLiquido);
+
+            // Cores dinâmicas Lucro
+            const resLucroLiquido = document.getElementById('res_lucroLiquido');
+            const percLucroLiquido = document.getElementById('perc_lucroLiquido');
+            if (lucroLiquido >= 0) {
+                resLucroLiquido.className = "w-full md:w-48 shrink-0 text-left md:text-right text-3xl md:text-4xl font-black text-teal-900 pr-3";
+                percLucroLiquido.className = "w-full md:w-24 shrink-0 text-left md:text-right font-mono font-black text-2xl text-teal-800";
+            } else {
+                resLucroLiquido.className = "w-full md:w-48 shrink-0 text-left md:text-right text-3xl md:text-4xl font-black text-rose-600 pr-3";
+                percLucroLiquido.className = "w-full md:w-24 shrink-0 text-left md:text-right font-mono font-black text-2xl text-rose-600";
+            }
+
+            // 4. LÓGICA DO ALERTA DE RISCO E PONTO DE EQUILÍBRIO
+            const despesasFixas = pessoal + ocupacao + admMarketing + depreciacao + juros;
+            const despesasVariaveisUnitaria = qtdVendas > 0 ? (deducoes + embalagens + taxasCartao + impostosLucro) / qtdVendas : 0;
+            const margemContribuicaoUnitaria = precoVenda - custoPorUsuario - despesasVariaveisUnitaria;
+            
+            const infoBox = document.getElementById('res_pontoEquilibrio_info');
+            const alertBox = document.getElementById('alerta_risco_box');
+
+            if (margemContribuicaoUnitaria > 0) {
+                const pontoEquilibrio = Math.ceil(despesasFixas / margemContribuicaoUnitaria);
+                infoBox.textContent = `Ponto de Equilíbrio Comercial (Break-even): ${pontoEquilibrio.toLocaleString('pt-BR')} usuários ativos`;
+
+                const margemSeguranca = ((qtdVendas - pontoEquilibrio) / pontoEquilibrio) * 100;
+                const excedente = qtdVendas - pontoEquilibrio;
+
+                if (qtdVendas < pontoEquilibrio) {
+                    alertBox.className = "mt-1 px-3 py-2 border rounded-md text-xs font-bold transition-all bg-rose-100 text-rose-800 border-rose-300";
+                    alertBox.innerHTML = "⚠️ CASH BURN: O App está em fase de queima de caixa (Prejuízo).";
+                } else if (margemSeguranca <= 20) {
+                    alertBox.className = "mt-1 px-3 py-2 border rounded-md text-xs font-bold transition-all bg-amber-100 text-amber-800 border-amber-400";
+                    alertBox.innerHTML = `⚠️ ATENÇÃO: Margem para break-even é curta (+${margemSeguranca.toFixed(0)}%).<br>` +
+                                         `<div class="font-normal text-[11px] mt-1.5 leading-tight text-amber-900/80">` +
+                                         `Numerador: ${qtdVendas.toLocaleString('pt-BR')} pagantes, menos ${pontoEquilibrio.toLocaleString('pt-BR')} para empate, restam ${excedente.toLocaleString('pt-BR')} usuários gerando lucro real.<br>` +
+                                         `Denominador: ${pontoEquilibrio.toLocaleString('pt-BR')} usuários. Conta: (${excedente.toLocaleString('pt-BR')} / ${pontoEquilibrio.toLocaleString('pt-BR')}) × 100 = ${margemSeguranca.toFixed(0)}%.` +
+                                         `</div>`;
+                } else {
+                    alertBox.className = "mt-1 px-3 py-2 border rounded-md text-xs font-bold transition-all bg-teal-100 text-teal-800 border-teal-300";
+                    alertBox.innerHTML = `✅ STARTUP SAUDÁVEL: App autossustentável (+${margemSeguranca.toFixed(0)}%).<br>` +
+                                         `<div class="font-normal text-[11px] mt-1.5 leading-tight text-teal-900/80">` +
+                                         `Numerador: ${qtdVendas.toLocaleString('pt-BR')} pagantes, menos ${pontoEquilibrio.toLocaleString('pt-BR')} para empate, restam ${excedente.toLocaleString('pt-BR')} usuários gerando lucro real.<br>` +
+                                         `Denominador: ${pontoEquilibrio.toLocaleString('pt-BR')} usuários. Conta: (${excedente.toLocaleString('pt-BR')} / ${pontoEquilibrio.toLocaleString('pt-BR')}) × 100 = ${margemSeguranca.toFixed(0)}%.` +
+                                         `</div>`;
+                }
+            } else {
+                infoBox.textContent = "Break-even: Matemáticamente Impossível";
+                alertBox.className = "mt-1 px-3 py-2 border rounded-md text-xs font-bold transition-all bg-rose-600 text-white border-rose-800";
+                alertBox.innerHTML = "🚨 CRÍTICO: Unit Economics negativos! Cada usuário a mais te dá prejuízo imediato.";
+            }
+
+            // 5. ATUALIZAÇÃO DO GRÁFICO (Chart.js)
+            atualizarGrafico(cmv, despOperacionais, despFinanceiras + impostosLucro + deducoes, lucroLiquido);
+        }
+
+        function atualizarGrafico(custoProduto, despGestao, despGovernoBancos, lucro) {
+            const ctx = document.getElementById('graficoRaioX').getContext('2d');
+            
+            // Tratamento caso o lucro seja negativo (para não quebrar o gráfico visualmente)
+            const valorLucroGrafico = lucro > 0 ? lucro : 0;
+            
+            if (graficoRaioXInstancia) {
+                graficoRaioXInstancia.destroy();
+            }
+
+            graficoRaioXInstancia = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: [
+                        'Infra e Cloud (CSP)', 
+                        'Time, Marketing e Gestão (Opex)', 
+                        'Lojas (Apple/GPlay), Impostos e Descontos', 
+                        lucro > 0 ? 'Lucro (Dinheiro em Caixa)' : 'Queima de Caixa (Burn Rate)'
+                    ],
+                    datasets: [{
+                        data: [custoProduto, despGestao, despGovernoBancos, valorLucroGrafico],
+                        backgroundColor: [
+                            '#f43f5e', // Rose-500
+                            '#6366f1', // Indigo-500
+                            '#94a3b8', // Slate-400
+                            lucro > 0 ? '#14b8a6' : '#f43f5e' // Teal-500 ou Rose
+                        ],
+                        borderWidth: 2,
+                        borderColor: '#ffffff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '60%',
+                    plugins: {
+                        legend: { position: 'bottom', labels: { font: { family: 'Inter', size: 11 } } },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let value = context.raw;
+                                    return ' ' + new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function restaurarValores() {
+            // Valores padrão para App SaaS
+            document.getElementById('val_qtdVendas').value = 1500;
+            document.getElementById('val_descontos').value = 1500; // PromoCodes
+            document.getElementById('val_devolucoes').value = 500; // Refunds
+            document.getElementById('val_impostosVenda').value = 2000;
+            document.getElementById('val_embalagens').value = 500; // Licenças SaaS Extras
+            
+            document.getElementById('val_pessoal').value = 15000; // Equipe
+            document.getElementById('val_ocupacao').value = 2000; // Home Office / Coworking
+            document.getElementById('val_admMarketing').value = 8000; // Meta/Google Ads
+            document.getElementById('val_depreciacao').value = 800; // Macbooks
+            
+            document.getElementById('val_taxasCartao').value = 6000; // Apple, Google (15/30%) + Stripe
+            document.getElementById('val_juros').value = 200;
+            document.getElementById('val_impostosLucro').value = 0; // Geralmente zero em startup
+            
+            // Ficha Técnica (Unit Economics)
+            document.getElementById('ft_item1_preco').value = 500;
+            document.getElementById('ft_item1_qtd').value = 1000;
+            document.getElementById('ft_item2_preco').value = 200;
+            document.getElementById('ft_item2_qtd').value = 1000;
+            document.getElementById('ft_item3_custo').value = 0.30;
+            document.getElementById('ft_preco_venda').value = 29.90; // Assinatura
+
+            calcularValores();
+        }
+
+        window.onload = () => {
+            restaurarValores();
+        };
+    </script>
+</body>
+</html>
